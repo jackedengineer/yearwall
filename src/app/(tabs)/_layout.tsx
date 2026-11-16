@@ -1,13 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
 import { router, Tabs } from 'expo-router';
 import { useEffect } from 'react';
-import { AppState } from 'react-native';
+import { AppState, type ColorValue } from 'react-native';
 import { commit, S, UI } from '@/data/state';
 import { todayS } from '@/utils/dates';
 import { C, font } from '@/theme';
 import type { IconName } from '@/components/ui';
 
-const icon = (name: IconName) => ({ color }: { color: string }) => <Feather name={name} size={22} color={color} />;
+const icon = (name: IconName) => ({ color }: { color: ColorValue }) => <Feather name={name} size={22} color={color as string} />;
 
 export default function TabsLayout() {
   useEffect(() => {

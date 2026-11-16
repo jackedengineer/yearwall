@@ -34,10 +34,18 @@
           "imageWidth": 160,
           "backgroundColor": "#090807"
         }
-      ]
+      ],
+      "expo-status-bar",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": false
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "553730a8-458b-4dfb-9542-6ef34bd5359e"
+      }
+    },
+    "owner": "jackedengineer"
   }
 }

@@ -1,6 +1,6 @@
 # Year Wall: notes for Claude
 
-Personal productivity app (Expo SDK 57, Expo Router, TypeScript, expo-sqlite). Offline-only: there is no backend. The owner tests on a physical Android phone with Expo Go, and the iPhone build comes later.
+Personal productivity app (Expo SDK 58, Expo Router, TypeScript, expo-sqlite). Offline-only: there is no backend. The owner tests on a physical Android phone with Expo Go, and the iPhone build comes later.
 
 ## Architecture
 - `src/data/state.ts`: one in-memory `S` (same JSON shape as the web version's backup) plus `UI` view state. `commit()` notifies screens, and `useStore()` (`src/hooks/use-store.ts`) re-renders on change. Screens read `S` directly.
@@ -16,5 +16,5 @@ Personal productivity app (Expo SDK 57, Expo Router, TypeScript, expo-sqlite). O
 - Run `npm test` after changing anything in `src/data` or `src/utils`.
 
 ## Not verified on a device yet
-The first version was written without network access, so packages were never installed and the app has not run on a phone. Check these first:
+The first version was written without network access. Packages are now installed at SDK 58 versions, and `npx expo export -p android` bundles cleanly, but the app has not run on a phone yet. Check these first:
 `expo-file-system` `File`/`Paths` API (export/import in `src/app/settings.tsx`), `react-native-view-shot` capture size options (`src/app/share.tsx`), and the tab bar styling (`sceneStyle`, `tabBarStyle`).

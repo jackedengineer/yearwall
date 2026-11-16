@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { useRef, useState } from 'react';
+import { type ComponentRef, useRef, useState } from 'react';
 import { Alert, View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import { WeekShareCard, YearShareCard } from '@/components/share-cards';
@@ -12,7 +12,7 @@ export default function ShareSheet() {
   const { kind, w } = useLocalSearchParams<{ kind?: string; w?: string }>();
   const isWeek = kind === 'week';
   const week = clampWeek(Number(w) || weekOf(todayS()));
-  const ref = useRef<View>(null);
+  const ref = useRef<ComponentRef<typeof View>>(null);
   const [busy, setBusy] = useState(false);
 
   const share = async () => {
