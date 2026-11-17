@@ -10,7 +10,7 @@ const STEPS = [
   ['Today is where you start', "Open the app each morning and night. Tap to log minutes or tick a habit, then write tonight's log. Tap the mic on your keyboard to speak it instead."],
   ['The Year board', 'Tap any week to set its focus, add plans, tick habits or write notes. A week where every habit hits its target turns green and counts as a perfect week.'],
   ['Chapters and finish lines', 'Each chapter has phases and the tests you take on Day 0 and at the end. Add your Day 0 numbers on the Chapter tab.'],
-  ['Everything stays on your phone', 'Your data lives in a database on this phone, with no account and no internet needed. Export a backup from Settings now and then.'],
+  ['Your data, on your phone first', 'Everything is saved on this phone and works without internet. Turn on sync in Settings to see the same data in the web app. Export a backup now and then.'],
 ];
 
 export default function Intro() {

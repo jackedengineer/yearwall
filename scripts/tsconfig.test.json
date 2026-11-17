@@ -3,12 +3,12 @@
     "target": "ES2022",
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "strict": true,
     "skipLibCheck": true,
     "noEmitOnError": true,
     "outDir": "../.test-build",
     "rootDir": "../src"
   },
-  "files": ["../src/data/store.ts", "../src/utils/logic.ts"]
+  "files": ["../src/data/store.ts", "../src/data/sync.ts", "../src/data/sync-local.ts", "../src/utils/logic.ts"]
 }

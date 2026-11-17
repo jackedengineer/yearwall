@@ -1,0 +1,265 @@
+/* Year Wall web: near-black background, white text, grey bars, color only for plan categories. */
+:root {
+  color-scheme: dark;
+  --bg: #090807;
+  --s1: #121110;
+  --s3: #1a1817;
+  --line: #2a2725;
+  --tx: #f4f1ec;
+  --mut: #9a958f;
+  --lit: #ece8e2;
+  --nav-h: 64px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--tx);
+  font-family: Montserrat, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--bg) url('./glow.png') no-repeat top center / 100% 360px;
+}
+
+body.locked {
+  overflow: hidden;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Boxes behave like the phone app's views: flex columns that don't shrink. */
+.v {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-shrink: 0;
+  flex-basis: auto;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0 solid transparent;
+  z-index: 0;
+}
+
+.t {
+  margin: 0;
+  padding: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: inherit;
+}
+
+button.press {
+  appearance: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button.press:disabled {
+  cursor: default;
+}
+
+button.press:focus-visible,
+a.tab:focus-visible,
+.field:focus-visible {
+  outline: 2px solid var(--lit);
+  outline-offset: 2px;
+}
+
+.field {
+  font-family: inherit;
+  display: block;
+}
+
+.field:focus {
+  border-color: #5c5853 !important;
+  outline: none;
+}
+
+.field::placeholder {
+  color: #6f6a65;
+}
+
+/* ---------- layout ---------- */
+
+.page {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.screen {
+  display: block;
+}
+
+.tabs {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 12px 18px;
+  background: rgba(9, 8, 7, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid #1a1817;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 28px;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.brand.small {
+  font-size: 16px;
+  margin-right: auto;
+  text-align: left;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  color: var(--mut);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.tab:hover {
+  background: #141312;
+  color: var(--tx);
+}
+
+.tab.on {
+  background: var(--s3);
+  color: var(--tx);
+}
+
+/* Phones and narrow windows: tab bar at the bottom, like the app. */
+@media (max-width: 719px) {
+  .tabs {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-width: none;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    gap: 0;
+    background: #0e0d0c;
+    border-bottom: 0;
+    border-top: 1px solid #24211f;
+  }
+  .brand.small {
+    display: none;
+  }
+  .tab {
+    flex: 1;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 0;
+    font-size: 11px;
+  }
+  .tab.on {
+    background: none;
+  }
+  .page {
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  }
+}
+
+/* ---------- dialogs ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.62);
+  animation: fade 0.12s ease-out;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 600px;
+  max-height: min(880px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  background: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+
+.modal-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  flex: 1;
+}
+
+@media (max-width: 719px) {
+  .overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+  .dialog {
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    border: 0;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------- sign-in and loading ---------- */
+
+.center {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.center-box {
+  width: min(400px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

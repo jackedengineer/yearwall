@@ -7,6 +7,7 @@ import { Text, View } from 'react-native';
 import { openDb } from '@/data/db';
 import { UI } from '@/data/state';
 import { initStore } from '@/data/store';
+import { startSync } from '@/data/sync-app';
 import { C, setFontsReady } from '@/theme';
 import { YEAR_START, monKey, todayS, weekOf, clampWeek } from '@/utils/dates';
 
@@ -38,6 +39,10 @@ export default function RootLayout() {
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
+  // Sync with the server (if connected in Settings) once the local data is loaded.
+  useEffect(() => {
+    if (!error) startSync();
+  }, [error]);
 
   if (!ready) return null;
   if (error)

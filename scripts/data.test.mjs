@@ -9,6 +9,11 @@ const store = require('../.test-build/data/store.js');
 const state = require('../.test-build/data/state.js');
 const logic = require('../.test-build/utils/logic.js');
 const repo = require('../.test-build/data/repo.js');
+const syncLib = require('../.test-build/data/sync.js');
+const syncLocal = require('../.test-build/data/sync-local.js');
+const records = require('../.test-build/data/records.js');
+// The real server code from the Cloudflare Worker (Node runs the TypeScript directly).
+const server = await import('../web/worker/sync-db.ts');
 
 function adapter(file = ':memory:') {
   const d = new DatabaseSync(file);
@@ -61,7 +66,7 @@ test('reloading from SQLite gives the same data', () => {
 
 test('migrate is safe to run twice', () => {
   repo.migrate();
-  assert.equal(db.all('PRAGMA user_version')[0].user_version, 1);
+  assert.equal(db.all('PRAGMA user_version')[0].user_version, 2);
 });
 
 test('ramping targets follow the date', () => {
@@ -198,5 +203,165 @@ test('board helpers', () => {
   assert.equal(logic.nextChapter('2027-01-02').name, 'The Pitch');
   assert.equal(logic.nextMilestone('2026-11-16').title, 'Vipassana');
 });
+
+
+/* ---------- sync (phone engine against the real server code on node:sqlite) ---------- */
+
+const atest = async (name, fn) => {
+  await fn();
+  passed++;
+  console.log('  ok', name);
+};
+
+// The server's database: same SQL as D1, on node:sqlite.
+const serverDb = new DatabaseSync(':memory:');
+const sqlServer = {
+  async batch(stmts) {
+    serverDb.exec('BEGIN');
+    try {
+      const out = stmts.map((s) => {
+        const st = serverDb.prepare(s.sql);
+        return /^\s*SELECT/i.test(s.sql) ? st.all(...s.params) : (st.run(...s.params), []);
+      });
+      serverDb.exec('COMMIT');
+      return out;
+    } catch (e) {
+      serverDb.exec('ROLLBACK');
+      throw e;
+    }
+  },
+};
+await sqlServer.batch(server.SCHEMA.map((sql) => ({ sql, params: [] })));
+const KEY = 'test-key';
+// Stands in for fetch(): runs the Worker's sync logic directly.
+const fakeFetch = async (_url, init) => {
+  if (init.headers.authorization !== `Bearer ${KEY}`) return { ok: false, status: 401, json: async () => ({}) };
+  const { since, push } = server.parseBody(JSON.parse(init.body));
+  const body = await server.sync(sqlServer, since, push);
+  return { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(body)) };
+};
+const serverRecs = async () => (await server.sync(sqlServer, 0, [])).pull;
+const serverRec = async (k, i) => (await serverRecs()).find((r) => r.k === k && r.i === i);
+// Another device editing: push records straight to the server.
+const otherDevice = (recs) => server.sync(sqlServer, 0, recs);
+
+// A phone: fresh SQLite, template data, sync wired up like the app does it.
+function phone(key = KEY) {
+  const pdb = adapter();
+  store.initStore(pdb);
+  const local = syncLocal.sqliteSyncStore();
+  const engine = syncLib.createSync({ store: local, endpoint: () => ({ url: 'https://example.test', key }), fetchFn: fakeFetch, debounceMs: 0 });
+  store.setTouchHandler(engine.touch);
+  return { pdb, local, engine };
+}
+
+let A = phone();
+
+await atest('first sync sends everything the phone already has', async () => {
+  await A.engine.syncNow();
+  assert.equal(A.engine.status().state, 'ok');
+  assert.equal(A.local.dirty().length, 0);
+  assert.equal((await serverRecs()).length, records.allKeys().length);
+  assert.equal((await serverRec('plan', 'pl4')).d.title, 'Vipassana');
+  assert.ok(A.local.cursor() >= 1);
+});
+
+await atest('an edit on the phone reaches the server', async () => {
+  store.actions.savePlan({ ...S.meta.plans.find((p) => p.id === 'pl2'), title: 'Mini-retreat (5 h)' });
+  store.actions.setValue(H('h_med'), '2026-11-18', 40);
+  assert.equal(A.local.dirty().length, 2);
+  await A.engine.syncNow();
+  assert.equal((await serverRec('plan', 'pl2')).d.title, 'Mini-retreat (5 h)');
+  assert.deepEqual((await serverRec('log', '2026-11-18|h_med')).d, { v: 40 });
+  assert.equal(A.local.dirty().length, 0);
+});
+
+await atest('edits and deletes from another device arrive on the phone and in SQLite', async () => {
+  const later = Date.now() + 5000;
+  await otherDevice([
+    { k: 'plan', i: 'pl9', u: later, d: { id: 'pl9', title: 'Made on the web', start: '2027-02-01', end: '2027-02-03', cat: 'work' } },
+    { k: 'post', i: 'p001', u: later, d: null },
+    { k: 'log', i: '2026-11-18|h_med', u: later, d: null },
+  ]);
+  await A.engine.syncNow();
+  assert.equal(S.meta.plans.find((p) => p.id === 'pl9').title, 'Made on the web');
+  assert.equal(S.posts.some((p) => p.id === 'p001'), false);
+  assert.equal(logic.valueOn(H('h_med'), '2026-11-18'), 0);
+  const saved = repo.loadAll();
+  assert.ok(saved.meta.plans.some((p) => p.id === 'pl9'));
+  assert.equal(saved.posts.some((p) => p.id === 'p001'), false);
+});
+
+await atest('the later edit wins a conflict', async () => {
+  store.actions.saveWeek(5, { focus: 'phone focus' });
+  // An older edit from another device must not overwrite it.
+  await otherDevice([{ k: 'week', i: '5', u: 1, d: { focus: 'stale web focus' } }]);
+  await A.engine.syncNow();
+  assert.equal(S.meta.weeks['5'].focus, 'phone focus');
+  assert.equal((await serverRec('week', '5')).d.focus, 'phone focus');
+  // A newer one does.
+  await otherDevice([{ k: 'week', i: '5', u: Date.now() + 10000, d: { focus: 'newer web focus' } }]);
+  await A.engine.syncNow();
+  assert.equal(S.meta.weeks['5'].focus, 'newer web focus');
+});
+
+await atest('habit order follows the other device', async () => {
+  const meditation = { ...H('h_med'), sort: 3 };
+  await otherDevice([{ k: 'habit', i: 'h_med', u: Date.now() + 20000, d: meditation }]);
+  await A.engine.syncNow();
+  assert.deepEqual(S.meta.habits.map((h) => h.id), ['h_yoga', 'h_read', 'h_log', 'h_med']);
+  assert.deepEqual(repo.loadAll().meta.habits.map((h) => h.id), ['h_yoga', 'h_read', 'h_log', 'h_med']);
+});
+
+await atest('a new phone takes the server data instead of its own template', async () => {
+  const B = phone();
+  assert.ok(S.posts.some((p) => p.id === 'p001')); // fresh template
+  await B.engine.syncNow();
+  assert.equal(S.posts.some((p) => p.id === 'p001'), false);
+  assert.equal(S.meta.plans.find((p) => p.id === 'pl2').title, 'Mini-retreat (5 h)');
+  assert.equal(S.meta.weeks['5'].focus, 'newer web focus');
+  assert.equal(B.local.dirty().length, 0);
+  A = B;
+});
+
+await atest('importing a backup syncs removed records as deletions', async () => {
+  const backup = JSON.parse(store.actions.exportJson());
+  backup.meta.plans = backup.meta.plans.filter((p) => p.id !== 'pl9');
+  store.actions.importJson(JSON.stringify(backup));
+  await A.engine.syncNow();
+  assert.equal((await serverRec('plan', 'pl9')).d, null);
+  assert.ok((await serverRec('plan', 'pl1')).d);
+});
+
+await atest('a wrong sync key is reported, and nothing is lost', async () => {
+  const before = (await serverRecs()).length;
+  const bad = syncLib.createSync({ store: A.local, endpoint: () => ({ url: 'https://example.test', key: 'nope' }), fetchFn: fakeFetch });
+  store.actions.addPlan('Offline idea', '2027-03-01', '2027-03-01', 'personal');
+  await bad.syncNow();
+  assert.equal(bad.status().state, 'error');
+  assert.equal(A.local.dirty().length, 1);
+  assert.equal((await serverRecs()).length, before);
+  await A.engine.syncNow();
+  assert.equal(A.local.dirty().length, 0);
+});
+
+await atest('the web app sends nothing on its first sync, so its defaults never overwrite real data', async () => {
+  const before = await serverRec('settings', 'settings');
+  const web = syncLib.createSync({ store: (() => {
+    const m = new Map(); let c = -1;
+    return { cursor: () => c, setCursor: (r) => { c = r; }, clock: (k, i) => m.get(k + i)?.u, mark: (k, i, u, d) => m.set(k + i, { k, i, u, d }),
+      dirty: () => [...m.values()].filter((x) => x.d).map(({ k, i, u }) => ({ k, i, u })), clean: (k, i, u) => { const x = m.get(k + i); if (x && x.u === u) x.d = false; }, batch: (fn) => fn() };
+  })(), endpoint: () => ({ url: 'https://example.test', key: KEY }), fetchFn: fakeFetch, adoptLocal: false });
+  await web.syncNow();
+  assert.equal(web.status().state, 'ok');
+  assert.deepEqual(await serverRec('settings', 'settings'), before);
+});
+
+await atest('the server rejects bad records', async () => {
+  assert.throws(() => server.parseBody({ since: 0, push: [{ k: 'nope', i: 'x', u: 1, d: null }] }), /kind/);
+  assert.throws(() => server.parseBody({ since: -1 }), /since/);
+});
+
+store.setTouchHandler(null);
 
 console.log(`\n${passed} tests passed`);

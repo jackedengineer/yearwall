@@ -23,6 +23,7 @@ export const setDb = (d: Db) => {
 
 // Transactions nest (replaceAll calls saveChapter), so only the outermost one opens a real transaction.
 let depth = 0;
+export const batch = (fn: () => void) => tx(fn);
 function tx(fn: () => void) {
   if (depth > 0) return fn();
   depth++;
@@ -58,8 +59,31 @@ export function migrate() {
     db.tx(() => db.exec(SCHEMA_V1));
     db.exec('PRAGMA user_version = 1');
   }
-  // Future schema changes: add `if (v < 2) { ... PRAGMA user_version = 2 }` here.
+  if (v < 2) {
+    db.tx(() => db.exec(SCHEMA_V2));
+    db.exec('PRAGMA user_version = 2');
+  }
+  // Future schema changes: add `if (v < 3) { ... PRAGMA user_version = 3 }` here.
 }
+
+/** v2: sync bookkeeping. Which records changed when, which still need sending, and sync settings. */
+const SCHEMA_V2 = `
+CREATE TABLE IF NOT EXISTS sync_records (kind TEXT NOT NULL, id TEXT NOT NULL, updated_at INTEGER NOT NULL, dirty INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (kind, id));
+CREATE TABLE IF NOT EXISTS sync_meta (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+`;
+
+/* ---------- sync bookkeeping (local only, never synced) ---------- */
+
+export const syncLoad = () => db.all<{ kind: string; id: string; updated_at: number; dirty: number }>('SELECT kind, id, updated_at, dirty FROM sync_records');
+export const syncMark = (kind: string, id: string, updatedAt: number, dirty: boolean) =>
+  db.run('INSERT OR REPLACE INTO sync_records (kind, id, updated_at, dirty) VALUES (?, ?, ?, ?)', [kind, id, updatedAt, dirty ? 1 : 0]);
+export const syncClean = (kind: string, id: string, updatedAt: number) =>
+  db.run('UPDATE sync_records SET dirty = 0 WHERE kind = ? AND id = ? AND updated_at = ?', [kind, id, updatedAt]);
+export const syncMetaGet = (key: string): string | null => db.all<{ value: string }>('SELECT value FROM sync_meta WHERE key = ?', [key])[0]?.value ?? null;
+export const syncMetaSet = (key: string, value: string | null) =>
+  value === null ? db.run('DELETE FROM sync_meta WHERE key = ?', [key]) : db.run('INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)', [key, value]);
+/** Forget all sync progress (switching to another server or key). */
+export const syncReset = () => db.exec("DELETE FROM sync_records; DELETE FROM sync_meta WHERE key = 'cursor';");
 
 /* ---------- load ---------- */
 

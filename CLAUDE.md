@@ -1,10 +1,12 @@
 # Year Wall: notes for Claude
 
-Personal productivity app (Expo SDK 58, Expo Router, TypeScript, expo-sqlite). Offline-only: there is no backend. The owner tests on a physical Android phone with Expo Go, and the iPhone build comes later.
+Personal productivity app (Expo SDK 58, Expo Router, TypeScript, expo-sqlite). Offline-first on the phone, synced through a small Cloudflare server to a React web app in `web/`. The owner tests on a physical Android phone (Expo Go or an EAS APK), and the iPhone build comes later.
 
 ## Architecture
 - `src/data/state.ts`: one in-memory `S` (same JSON shape as the web version's backup) plus `UI` view state. `commit()` notifies screens, and `useStore()` (`src/hooks/use-store.ts`) re-renders on change. Screens read `S` directly.
-- `src/data/store.ts`: **every change goes through `actions.*`**. Each action updates `S`, writes the SQLite rows through `repo.ts`, then calls `commit()`. Never mutate `S` from a screen.
+- `src/data/store.ts`: **every change goes through `actions.*`**. Each action updates `S`, saves through `P` (SQLite via `repo.ts` on the phone, nothing on the web), calls `touch(kind, id)` for every sync record it changed, then calls `commit()`. Never mutate `S` from a screen. A new action that skips `touch` won't sync.
+- Sync: `src/data/records.ts` maps `S` to records (`kind:id` → JSON, e.g. `plan:pl1`, `log:2026-11-17|h_med`). `src/data/sync.ts` is the engine (push dirty records, pull changes since the server's `rev`, last edit wins), shared with the web. Phone bookkeeping is in SQLite (`sync_records`, `sync_meta`, schema v2) via `sync-local.ts`; `sync-app.ts` wires it to AppState and Settings. Changing a record's shape must stay readable by older clients.
+- `web/`: separate npm project (Vite + React, deployed with the `cf` CLI). `web/worker/` is the API (`POST /api/sync`, bearer `SYNC_KEY` secret, D1 table `records`); `web/src` imports shared code through the `@core` alias (= `../src`). Screens there are ports of the phone screens using `web/src/lib/rn.tsx` (flex-column divs), not React Native.
 - `src/data/repo.ts`: schema plus migrations (`PRAGMA user_version`). To change the schema, add an `if (v < N)` block and never edit `SCHEMA_V1`. It talks to a tiny `Db` adapter, so the same code runs on expo-sqlite (`src/data/db.ts`) and on node:sqlite in tests.
 - `src/utils/logic.ts`: pure habit logic (targets that step up by date, pauses, streaks, perfect weeks, board colors). Keep it free of React and React Native imports so `npm test` can run it.
 - Dates are local `YYYY-MM-DD` strings, and weeks run Monday to Sunday. Week 1 starts 2026-11-16 (`YEAR_START` in `src/utils/dates.ts`).
@@ -13,8 +15,9 @@ Personal productivity app (Expo SDK 58, Expo Router, TypeScript, expo-sqlite). O
 - Install packages with `npx expo install <pkg>`, never with npm directly.
 - Look: near-black `#090807`, white text, grey day bars, and color only for the five plan categories. Montserrat comes from `@expo-google-fonts/montserrat`. Use `T` from `src/components/ui.tsx` for all text.
 - Modal forms are routes in `src/app/*` registered in `src/app/_layout.tsx` with `presentation: 'modal'`.
-- Run `npm test` after changing anything in `src/data` or `src/utils`.
+- Run `npm test` after changing anything in `src/data`, `src/utils` or `web/worker`. Run `cd web && npm run typecheck` after changing shared code too, since the web app compiles it.
+- Keep `src/data`, `src/utils`, `src/constants.ts` and `src/theme.ts` free of React Native imports: the web app and the tests use them.
 
 ## Not verified on a device yet
-The first version was written without network access. Packages are now installed at SDK 58 versions, and `npx expo export -p android` bundles cleanly, but the app has not run on a phone yet. Check these first:
+The app now runs on the owner's Android phone (EAS APK). Not yet checked on a device: sync from the phone (Settings → Sync), and these older items:
 `expo-file-system` `File`/`Paths` API (export/import in `src/app/settings.tsx`), `react-native-view-shot` capture size options (`src/app/share.tsx`), and the tab bar styling (`sceneStyle`, `tabBarStyle`).
