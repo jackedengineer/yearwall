@@ -357,6 +357,22 @@ await atest('the web app sends nothing on its first sync, so its defaults never 
   assert.deepEqual(await serverRec('settings', 'settings'), before);
 });
 
+await atest('changing the server address keeps unsent edits and re-sends everything', async () => {
+  store.actions.saveWeek(9, { focus: 'edited just before switching' });
+  repo.syncReset();
+  const fresh = syncLocal.sqliteSyncStore();
+  assert.equal(fresh.cursor(), -1);
+  // Every record goes again, including deletions (which keep their edit time).
+  assert.ok(fresh.dirty().length >= records.allKeys().length);
+  const again = syncLib.createSync({ store: fresh, endpoint: () => ({ url: 'https://example.test', key: KEY }), fetchFn: fakeFetch });
+  store.setTouchHandler(again.touch);
+  await again.syncNow();
+  assert.equal(fresh.dirty().length, 0);
+  assert.equal((await serverRec('week', '9')).d.focus, 'edited just before switching');
+  assert.equal(S.meta.weeks['9'].focus, 'edited just before switching');
+  A = { ...A, local: fresh, engine: again };
+});
+
 await atest('the server rejects bad records', async () => {
   assert.throws(() => server.parseBody({ since: 0, push: [{ k: 'nope', i: 'x', u: 1, d: null }] }), /kind/);
   assert.throws(() => server.parseBody({ since: -1 }), /since/);

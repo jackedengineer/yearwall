@@ -1,6 +1,6 @@
 # Year Wall: notes for Claude
 
-Personal productivity app (Expo SDK 58, Expo Router, TypeScript, expo-sqlite). Offline-first on the phone, synced through a small Cloudflare server to a React web app in `web/`. The owner tests on a physical Android phone (Expo Go or an EAS APK), and the iPhone build comes later.
+Personal productivity app (Expo SDK 58, Expo Router, TypeScript, expo-sqlite). Offline-first on the phone, synced through a small Cloudflare server to a React web app in `web/`, live at https://yearwall.jacked.dev. The owner tests on a physical Android phone (Expo Go or an EAS APK), and the iPhone build comes later.
 
 ## Architecture
 - `src/data/state.ts`: one in-memory `S` (same JSON shape as the web version's backup) plus `UI` view state. `commit()` notifies screens, and `useStore()` (`src/hooks/use-store.ts`) re-renders on change. Screens read `S` directly.

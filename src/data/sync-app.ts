@@ -12,7 +12,7 @@ import { createSync, type Endpoint, type Sync, type SyncStatus } from './sync';
 import { saveEndpoint, savedEndpoint, sqliteSyncStore } from './sync-local';
 
 /** The Year Wall server (Cloudflare Worker in web/). */
-export const DEFAULT_SERVER = 'https://yearwall.ichiragbhugra.workers.dev';
+export const DEFAULT_SERVER = 'https://yearwall.jacked.dev';
 const EVERY_MS = 10_000;
 
 let sync: Sync | null = null;
@@ -66,7 +66,7 @@ export async function connect(url: string, key: string) {
   if (res.status === 401) throw new Error('That sync key is wrong.');
   if (!res.ok) throw new Error(`The server answered with error ${res.status}.`);
   const old = savedEndpoint();
-  // Switching to a different server or key: start sync bookkeeping from scratch.
+  // Different server or key: download everything again and re-send everything (the later edit still wins).
   if (old && (old.url !== ep.url || old.key !== ep.key)) repo.syncReset();
   saveEndpoint(ep);
   build();

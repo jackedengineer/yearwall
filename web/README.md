@@ -25,6 +25,11 @@ npm run typecheck
 
 ## Deploy
 
+Production: **https://yearwall.jacked.dev** (a Workers Custom Domain on the
+`jacked.dev` zone, attached once through the Cloudflare API; `cf deploy` keeps
+it). The workers.dev address `yearwall.ichiragbhugra.workers.dev` serves the
+same Worker and database.
+
 ```bash
 npx cf auth login
 npm run deploy

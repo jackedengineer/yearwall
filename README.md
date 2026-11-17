@@ -30,7 +30,7 @@ Open the link EAS gives you on your phone to install the APK. For Google Play, `
 
 ## Web app and sync
 
-The web app is at **https://yearwall.ichiragbhugra.workers.dev**. Phone and web share one sync key (there are no accounts):
+The web app is at **https://yearwall.jacked.dev** (the same Worker also answers at yearwall.ichiragbhugra.workers.dev). Phone and web share one sync key (there are no accounts):
 
 1. Phone: **Settings → Sync**, enter the sync key, tap **Connect**. The phone's data goes to the server.
 2. Browser: open the web app and enter the same key. It loads everything from the server.

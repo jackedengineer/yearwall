@@ -82,8 +82,9 @@ export const syncClean = (kind: string, id: string, updatedAt: number) =>
 export const syncMetaGet = (key: string): string | null => db.all<{ value: string }>('SELECT value FROM sync_meta WHERE key = ?', [key])[0]?.value ?? null;
 export const syncMetaSet = (key: string, value: string | null) =>
   value === null ? db.run('DELETE FROM sync_meta WHERE key = ?', [key]) : db.run('INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)', [key, value]);
-/** Forget all sync progress (switching to another server or key). */
-export const syncReset = () => db.exec("DELETE FROM sync_records; DELETE FROM sync_meta WHERE key = 'cursor';");
+/** Switching to another server or key: pull everything again and re-send every record.
+ *  Edit times are kept, so the later edit still wins on both sides and unsent edits aren't lost. */
+export const syncReset = () => db.exec("UPDATE sync_records SET dirty = 1; DELETE FROM sync_meta WHERE key = 'cursor';");
 
 /* ---------- load ---------- */
 
