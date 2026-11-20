@@ -1,107 +1,19 @@
 // Web version of src/screens/today.tsx (ported from the phone app).
-import Feather from '@web/lib/icons';
 import * as Haptics from '@web/lib/haptics';
 import { router } from '@web/lib/router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from '@web/lib/rn';
-import { Banner, Bar, Card, Chip, Empty, Field, IconBtn, Screen, Section, Sep, T } from '@web/ui';
+import { Banner, Card, Chip, Empty, Field, IconBtn, Screen, Section, Sep, T } from '@web/ui';
+import { HabitCards } from '@web/components/habit-card';
 import { CAT, STATUS_COLOR } from '@core/constants';
 import { commit, S, UI } from '@core/data/state';
 import { actions } from '@core/data/store';
-import type { Habit } from '@core/data/types';
 import { useStore } from '@web/lib/use-store';
 import { C } from '@web/lib/theme';
 import { addD, diff, fmt, fmtRange, plural, todayS, weekOf, clampWeek, WEEKS, YEAR_START } from '@core/utils/dates';
-import { chapterAt, doneOn, habits, isActive, journalOn, nextChapter, nextMilestone, phaseAt, plansOn, streak, targetOn, valueOn } from '@core/utils/logic';
+import { chapterAt, doneOn, habits, isActive, journalOn, nextChapter, nextMilestone, phaseAt, plansOn } from '@core/utils/logic';
 
 const tap = () => Haptics.selectionAsync().catch(() => {});
-
-function HabitRow({ h, d }: { h: Habit; d: string }) {
-  const t = todayS();
-  const future = d > t;
-  const val = valueOn(h, d);
-  const tgt = targetOn(h, d);
-  const done = val >= tgt;
-  const st = streak(h, d <= t ? d : t);
-  const stTxt = st.n > 0 ? `${plural(st.n, st.unit)} streak` : 'Start a streak';
-
-  if (h.type === 'minutes') {
-    const step = h.step || 5;
-    return (
-      <View style={row.habit}>
-        <View style={row.main}>
-          <T w={600} s={15}>
-            {h.name}
-          </T>
-          <Bar pct={(val / tgt) * 100} />
-          <View style={row.meta}>
-            <Pressable onPress={() => router.push({ pathname: '/minutes/[hid]', params: { hid: h.id, d } })} disabled={future} accessibilityRole="button" accessibilityLabel={`Set ${h.name} minutes`}>
-              <T s={12} c={C.mut} style={{ textDecorationLine: 'underline', textDecorationStyle: 'dotted' }}>
-                {val} of {tgt} min
-              </T>
-            </Pressable>
-            <T s={12} c={C.mut}>
-              {done ? 'Done. ' : ''}
-              {stTxt}
-            </T>
-          </View>
-        </View>
-        <Pressable
-          style={({ pressed }) => [row.step, row.minus, (future || val <= 0) && { opacity: 0.35 }, pressed && { opacity: 0.6 }]}
-          disabled={future || val <= 0}
-          onPress={() => {
-            tap();
-            actions.setValue(h, d, Math.max(0, val - step));
-          }}
-          accessibilityLabel={`Remove ${step} minutes`}
-        >
-          <T w={600} c={C.mut}>
-            −
-          </T>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [row.step, future && { opacity: 0.35 }, pressed && { opacity: 0.6 }]}
-          disabled={future}
-          onPress={() => {
-            tap();
-            if (val < tgt && val + step >= tgt) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            actions.setValue(h, d, val + step);
-          }}
-          accessibilityLabel={`Add ${step} minutes of ${h.name}`}
-        >
-          <T w={600}>+{step}</T>
-        </Pressable>
-      </View>
-    );
-  }
-
-  const auto = h.auto === 'journal';
-  return (
-    <View style={row.habit}>
-      <View style={row.main}>
-        <T w={600} s={15}>
-          {h.name}
-        </T>
-        <T s={12} c={C.mut}>
-          {auto ? (done ? `Saved. ${stTxt}` : "Ticks itself when you write tonight's log") : `${done ? 'Done' : 'Not done yet'}   ${stTxt}`}
-        </T>
-      </View>
-      <Pressable
-        disabled={future || auto}
-        onPress={() => {
-          tap();
-          actions.setValue(h, d, done ? 0 : 1);
-        }}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: done, disabled: future || auto }}
-        accessibilityLabel={h.name}
-        style={[row.check, done && row.checkOn]}
-      >
-        {done ? <Feather name="check" size={20} color={C.bg} /> : null}
-      </Pressable>
-    </View>
-  );
-}
 
 function ChapterCard({ d }: { d: string }) {
   const c = chapterAt(d);
@@ -207,6 +119,7 @@ function Journal({ d }: { d: string }) {
     <Card style={{ padding: 14, gap: 12 }}>
       <Field
         label="What happened, what surprised you, how you feel"
+        id={`journal-${d}`}
         value={text}
         onChangeText={(v) => {
           setText(v);
@@ -303,14 +216,7 @@ export function Today() {
 
       <Section left={d === t ? 'Habits today' : 'Habits this day'} right={act.length ? `${doneN} of ${act.length} done` : undefined} />
       {act.length ? (
-        <Card>
-          {act.map((h, i) => (
-            <View key={h.id}>
-              {i > 0 ? <Sep /> : null}
-              <HabitRow h={h} d={d} />
-            </View>
-          ))}
-        </Card>
+        <HabitCards d={d} />
       ) : (
         <Empty>
           {d < day0
@@ -362,12 +268,5 @@ export function Today() {
 }
 
 const row = {
-  habit: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingVertical: 12, paddingLeft: 14, paddingRight: 12 },
-  main: { flex: 1, minWidth: 0, gap: 6 },
-  meta: { flexDirection: 'row' as const, gap: 10, flexWrap: 'wrap' as const },
-  step: { minWidth: 50, height: 44, borderRadius: 12, backgroundColor: C.s4, borderWidth: 1, borderColor: C.line3, alignItems: 'center' as const, justifyContent: 'center' as const },
-  minus: { minWidth: 40 },
-  check: { width: 44, height: 44, borderRadius: 12, borderWidth: 1.5, borderColor: '#4A4642', alignItems: 'center' as const, justifyContent: 'center' as const },
-  checkOn: { backgroundColor: C.lit, borderColor: C.lit },
   item: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
 };

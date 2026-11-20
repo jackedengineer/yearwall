@@ -192,6 +192,7 @@ export function Label({ children }: { children: string }) {
 
 type FieldProps = {
   label?: string;
+  id?: string;
   value?: string;
   onChangeText?: (v: string) => void;
   /** Called when the field loses focus (or Enter in a one-line field). */
@@ -216,6 +217,7 @@ type FieldProps = {
 export function Field({ label, style, multiline, ...p }: FieldProps) {
   const inputMode = p.keyboardType === 'number-pad' ? 'numeric' : p.keyboardType === 'decimal-pad' ? 'decimal' : p.keyboardType === 'url' ? 'url' : p.keyboardType === 'email-address' ? 'email' : undefined;
   const common = {
+    id: p.id,
     value: p.value ?? '',
     placeholder: p.placeholder,
     maxLength: p.maxLength,

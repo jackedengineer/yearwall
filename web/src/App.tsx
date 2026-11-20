@@ -24,6 +24,9 @@ import { Money } from '@web/screens/money';
 import { Today } from '@web/screens/today';
 import { Year } from '@web/screens/year';
 import { Btn, Field, T } from '@web/ui';
+import { ConfirmHost } from '@web/components/confirm';
+import { Sidebar, useSidebarCollapsed } from '@web/components/sidebar';
+import { ToastHost } from '@web/components/toast';
 
 const PAGES: Record<(typeof TABS)[number], { title: string; icon: string; C: ComponentType }> = {
   '/': { title: 'Today', icon: 'sun', C: Today },
@@ -152,6 +155,7 @@ let lastTab: (typeof TABS)[number] = '/';
 
 function Shell() {
   useStore();
+  const [collapsed, toggleSidebar] = useSidebarCollapsed();
   const loc = useLocation();
   const m = match(loc.split('?')[0]);
   if (m && (TABS as readonly string[]).includes(m.route)) lastTab = m.route as (typeof TABS)[number];
@@ -197,9 +201,11 @@ function Shell() {
     document.title = Modal ? 'Year Wall' : `${PAGES[tab].title} · Year Wall`;
   }, [tab, Modal]);
 
+  // Wide screens show today's habits beside every tab except Today (which has them already).
+  const side = tab !== '/';
   return (
     <>
-      <nav className="tabs" aria-label="Sections">
+      <nav className={side ? 'tabs wide' : 'tabs'} aria-label="Sections">
         <span className="brand small">Year Wall</span>
         {TABS.map((p) => (
           <a
@@ -217,8 +223,11 @@ function Shell() {
           </a>
         ))}
       </nav>
-      <div className="page">
-        <Page />
+      <div className={`layout${side ? ' side' : ''}${side && collapsed ? ' collapsed' : ''}`}>
+        {side ? <Sidebar collapsed={collapsed} onToggle={toggleSidebar} /> : null}
+        <div className="page">
+          <Page />
+        </div>
       </div>
       {Modal ? (
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && router.back()}>
@@ -227,6 +236,8 @@ function Shell() {
           </div>
         </div>
       ) : null}
+      <ToastHost />
+      <ConfirmHost />
     </>
   );
 }
