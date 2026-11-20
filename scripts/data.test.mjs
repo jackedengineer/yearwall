@@ -741,6 +741,42 @@ await atest('an old phone and the new web app editing the same habit, plan and g
   assert.ok(prog.goalItems((await serverRec('goal', 'q1')).d, 'q1').every((i) => i.done));
 });
 
+await atest('updating the old phone to schema v3 pulls back the fields it dropped', async () => {
+  // The web sets a colour, answers a plan and keeps a checklist; the old phone (v2) syncs and drops them.
+  const later = Date.now() + 60000;
+  await otherDevice([
+    { k: 'habit', i: 'h_med', u: later, d: { ...H('h_med'), sort: 4, color: 'teal' } },
+    { k: 'plan', i: 'pl5', u: later, d: { ...plan('pl5'), outcome: 'missed' } },
+    { k: 'goal', i: 'q2', u: later, d: { text: 'A\nB', done: false, items: [{ id: 'a', text: 'A', done: true }, { id: 'b', text: 'B', done: false }] } },
+  ]);
+  await A.engine.syncNow();
+  store.initStore(A.pdb, oldPhonePersist());
+  assert.equal(H('h_med').color, undefined);
+  // An edit the old phone hasn't sent yet must survive the update.
+  store.actions.saveWeek(9, { focus: 'Unsent focus' });
+  // Turn its database back into v2, then install the new release.
+  A.pdb.exec('ALTER TABLE habits DROP COLUMN color; ALTER TABLE plans DROP COLUMN outcome; ALTER TABLE goals DROP COLUMN items; PRAGMA user_version = 2;');
+  store.initStore(A.pdb);
+  A = wire(A.pdb);
+  await A.engine.syncNow();
+  assert.equal(H('h_med').color, 'teal');
+  assert.equal(plan('pl5').outcome, 'missed');
+  assert.deepEqual(S.meta.goals.q2.items.map((i) => [i.text, i.done]), [['A', true], ['B', false]]);
+  assert.equal(S.meta.weeks['9'].focus, 'Unsent focus');
+  assert.equal((await serverRec('week', '9')).d.focus, 'Unsent focus');
+  // And they stay after another restart.
+  store.initStore(A.pdb);
+  A = wire(A.pdb);
+  assert.equal(H('h_med').color, 'teal');
+  assert.equal(plan('pl5').outcome, 'missed');
+  // Running the v3 step again (say the app was killed before it finished) is harmless.
+  A.pdb.exec('PRAGMA user_version = 2;');
+  store.initStore(A.pdb);
+  A = wire(A.pdb);
+  assert.equal(A.pdb.all('PRAGMA user_version')[0].user_version, 3);
+  assert.equal(H('h_med').color, 'teal');
+});
+
 await atest('a wrong sync key is reported, and nothing is lost', async () => {
   const before = (await serverRecs()).length;
   const bad = syncLib.createSync({ store: A.local, endpoint: () => ({ url: 'https://example.test', key: 'nope' }), fetchFn: fakeFetch });

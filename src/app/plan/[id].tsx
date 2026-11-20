@@ -65,7 +65,7 @@ export default function PlanSheet() {
           kind="danger"
           onPress={() => {
             const gone = actions.deletePlan(p.id);
-            if (gone) toast({ message: `Removed "${gone.title}".`, undo: () => actions.savePlan(gone) });
+            if (gone) toast({ message: `Removed "${gone.title}".`, undo: () => actions.savePlan(gone), focus: true });
             router.back();
           }}
         />

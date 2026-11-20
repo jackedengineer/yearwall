@@ -217,7 +217,7 @@ export function HabitCard({ h, d, first }: { h: Habit; d: string; first?: boolea
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${line}. Enter exact minutes`}
-            hitSlop={{ top: 10, bottom: 10 }}
+            hitSlop={{ top: 14, bottom: 14, right: 8 }}
             style={{ alignSelf: 'flex-start' }}
             onPress={() => router.push({ pathname: '/minutes/[hid]', params: { hid: h.id, d } })}
           >

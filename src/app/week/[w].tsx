@@ -190,7 +190,7 @@ function QuickAdd({ w, days, from: rawFrom, to: rawTo }: { w: number; days: stri
 
 function removePlan(p: Plan) {
   const gone = actions.deletePlan(p.id);
-  if (gone) toast({ message: `Removed "${p.title}".`, undo: () => actions.savePlan(gone) });
+  if (gone) toast({ message: `Removed "${p.title}".`, undo: () => actions.savePlan(gone), focus: true });
 }
 
 function DayList({ days }: { days: string[] }) {
@@ -242,7 +242,7 @@ function DayList({ days }: { days: string[] }) {
                       onPress={() => router.push({ pathname: '/plan/[id]', params: { id: p.id } })}
                       accessibilityRole="button"
                       accessibilityLabel={`${p.title}, ${CAT[p.cat]?.name ?? p.cat}${p.end !== p.start ? `, ${fmtRange(p.start, p.end)}` : ''}. Edit`}
-                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 32 }}
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 }}
                     >
                       <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: CAT[p.cat]?.color ?? C.mut }} />
                       <T w={600} s={13} style={{ flexShrink: 1 }}>
@@ -358,5 +358,5 @@ export default function WeekSheet() {
 
 const g = StyleSheet.create({
   days: { flexDirection: 'row', gap: 6 },
-  cell: { flex: 1, height: 40, borderRadius: 9, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  cell: { flex: 1, height: 44, borderRadius: 9, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 });

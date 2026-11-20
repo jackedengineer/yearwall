@@ -45,6 +45,7 @@ export function GoalCard({ q }: { q: 1 | 2 | 3 | 4 }) {
         if (cur.some((x) => x.id === g.id) || cur.length >= MAX_GOALS) return;
         save([...cur.slice(0, at), g, ...cur.slice(at)]);
       },
+      focus: true,
     });
   };
 
@@ -77,7 +78,7 @@ export function GoalCard({ q }: { q: 1 | 2 | 3 | 4 }) {
             accessibilityRole="checkbox"
             accessibilityState={{ checked: g.done }}
             accessibilityLabel={g.text}
-            hitSlop={8}
+            hitSlop={12}
             onPress={() => {
               Haptics.selectionAsync().catch(() => {});
               save(items.map((x) => (x.id === g.id ? { ...x, done: !x.done } : x)));

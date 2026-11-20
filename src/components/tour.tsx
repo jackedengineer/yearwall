@@ -10,11 +10,12 @@
 import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
 import { type ReactNode, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { AccessibilityInfo, BackHandler, Pressable, StyleSheet, type StyleProp, useWindowDimensions, View, type ViewInstance, type ViewStyle } from 'react-native';
+import { Modal, Pressable, StyleSheet, type StyleProp, useWindowDimensions, View, type ViewInstance, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { commit, S, UI } from '@/data/state';
 import { actions } from '@/data/store';
 import { C } from '@/theme';
+import { focusForScreenReader } from './a11y';
 import { ScrollCtx, type ScrollInfo } from './scroll-ctx';
 import { T } from './ui';
 
@@ -93,6 +94,7 @@ export function TourHost() {
   const win = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [rect, setRect] = useState<Rect | null>(null);
+  const text = useRef<ViewInstance>(null);
 
   // Go to the step's tab, scroll its target into view, then measure it.
   useEffect(() => {
@@ -105,7 +107,8 @@ export function TourHost() {
       commit();
     }
     router.navigate(s.route);
-    AccessibilityInfo.announceForAccessibility(`Tour, step ${i + 1} of ${STEPS.length}: ${s.title}. ${s.body}`);
+    // Screen readers start on the step's text.
+    setTimeout(() => live && focusForScreenReader(text.current), 450);
     (async () => {
       for (let tries = 0; tries < 10 && live; tries++) {
         await wait(tries ? 120 : 350);
@@ -132,16 +135,6 @@ export function TourHost() {
     };
   }, [i, insets.top, win.height]);
 
-  // The Android back button ends the tour.
-  useEffect(() => {
-    if (i === null) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      finish();
-      return true;
-    });
-    return () => sub.remove();
-  }, [i]);
-
   if (i === null) return null;
   const s = STEPS[i];
   const last = i === STEPS.length - 1;
@@ -159,54 +152,60 @@ export function TourHost() {
   const scrim = 'rgba(0, 0, 0, 0.62)';
 
   return (
-    <View style={StyleSheet.absoluteFill} accessibilityViewIsModal>
-      {hole ? (
-        <>
-          <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: hole.y, backgroundColor: scrim }} />
-          <View style={{ position: 'absolute', left: 0, right: 0, top: hole.y + hole.h, bottom: 0, backgroundColor: scrim }} />
-          <View style={{ position: 'absolute', left: 0, width: hole.x, top: hole.y, height: hole.h, backgroundColor: scrim }} />
-          <View style={{ position: 'absolute', left: hole.x + hole.w, right: 0, top: hole.y, height: hole.h, backgroundColor: scrim }} />
-          <View pointerEvents="none" style={{ position: 'absolute', left: hole.x, top: hole.y, width: hole.w, height: hole.h, borderRadius: 14, borderWidth: 2, borderColor: C.lit }} />
-          {/* Touches on the lit-up part don't reach the app while the tour is open. */}
-          <View style={{ position: 'absolute', left: hole.x, top: hole.y, width: hole.w, height: hole.h }} />
-        </>
-      ) : (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: scrim }]} />
-      )}
-      <View style={[st.card, cardBelow ? { bottom: insets.bottom + 72 } : { top: insets.top + 16 }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <T w={600} s={12} c={C.mut}>
-            {i + 1} of {STEPS.length}
-          </T>
-          <Pressable accessibilityRole="button" accessibilityLabel="End the tour" hitSlop={8} onPress={finish} style={st.x}>
-            <Feather name="x" size={18} color={C.tx2} />
-          </Pressable>
-        </View>
-        <T w={700} s={18} accessibilityRole="header">
-          {s.title}
-        </T>
-        <T s={14} c={C.tx2} style={{ lineHeight: 21 }}>
-          {s.body}
-        </T>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 }}>
-          <View style={{ flexDirection: 'row', gap: 4, flex: 1 }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-            {STEPS.map((_, k) => (
-              <View key={k} style={{ width: k === i ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: k === i ? C.lit : C.line3 }} />
-            ))}
-          </View>
-          {i > 0 ? (
-            <Pressable accessibilityRole="button" onPress={() => go(i - 1)} style={({ pressed }) => [st.btn, st.ghost, pressed && { opacity: 0.7 }]}>
-              <T w={600}>Back</T>
-            </Pressable>
-          ) : null}
-          <Pressable accessibilityRole="button" onPress={() => (last ? finish() : go(i + 1))} style={({ pressed }) => [st.btn, st.primary, pressed && { opacity: 0.7 }]}>
-            <T w={700} c={C.bg}>
-              {last ? 'Done' : 'Next'}
+    // A Modal is its own window on Android, so TalkBack can't reach the app behind the tour,
+    // and the back button (onRequestClose) ends it.
+    <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={finish}>
+      <View style={StyleSheet.absoluteFill} accessibilityViewIsModal>
+        {hole ? (
+          <>
+            <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: hole.y, backgroundColor: scrim }} />
+            <View style={{ position: 'absolute', left: 0, right: 0, top: hole.y + hole.h, bottom: 0, backgroundColor: scrim }} />
+            <View style={{ position: 'absolute', left: 0, width: hole.x, top: hole.y, height: hole.h, backgroundColor: scrim }} />
+            <View style={{ position: 'absolute', left: hole.x + hole.w, right: 0, top: hole.y, height: hole.h, backgroundColor: scrim }} />
+            <View pointerEvents="none" style={{ position: 'absolute', left: hole.x, top: hole.y, width: hole.w, height: hole.h, borderRadius: 14, borderWidth: 2, borderColor: C.lit }} />
+            {/* Touches on the lit-up part don't reach the app while the tour is open. */}
+            <View style={{ position: 'absolute', left: hole.x, top: hole.y, width: hole.w, height: hole.h }} />
+          </>
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: scrim }]} />
+        )}
+        <View style={[st.card, cardBelow ? { bottom: insets.bottom + 72 } : { top: insets.top + 16 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <T w={600} s={12} c={C.mut}>
+              {i + 1} of {STEPS.length}
             </T>
-          </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="End the tour" hitSlop={8} onPress={finish} style={st.x}>
+              <Feather name="x" size={18} color={C.tx2} />
+            </Pressable>
+          </View>
+          <View ref={text} accessible accessibilityRole="header" accessibilityLabel={`Tour, step ${i + 1} of ${STEPS.length}. ${s.title}. ${s.body}`} style={{ gap: 8 }}>
+            <T w={700} s={18}>
+              {s.title}
+            </T>
+            <T s={14} c={C.tx2} style={{ lineHeight: 21 }}>
+              {s.body}
+            </T>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 }}>
+            <View style={{ flexDirection: 'row', gap: 4, flex: 1 }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+              {STEPS.map((_, k) => (
+                <View key={k} style={{ width: k === i ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: k === i ? C.lit : C.line3 }} />
+              ))}
+            </View>
+            {i > 0 ? (
+              <Pressable accessibilityRole="button" onPress={() => go(i - 1)} style={({ pressed }) => [st.btn, st.ghost, pressed && { opacity: 0.7 }]}>
+                <T w={600}>Back</T>
+              </Pressable>
+            ) : null}
+            <Pressable accessibilityRole="button" onPress={() => (last ? finish() : go(i + 1))} style={({ pressed }) => [st.btn, st.primary, pressed && { opacity: 0.7 }]}>
+              <T w={700} c={C.bg}>
+                {last ? 'Done' : 'Next'}
+              </T>
+            </Pressable>
+          </View>
         </View>
       </View>
-    </View>
+    </Modal>
   );
 }
 

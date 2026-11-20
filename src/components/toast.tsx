@@ -1,19 +1,23 @@
 /**
- * One toast at a time, above the tab bar, with an optional Undo. TalkBack and
- * VoiceOver read every message. Toasts with Undo stay 10 s (5 s otherwise).
- * Slides up 10 px and scales from 0.98 in 200 ms; with reduced motion it just appears.
+ * One toast at a time, above the tab bar (or the keyboard), with an optional
+ * Undo. TalkBack and VoiceOver read every message. Toasts with Undo stay 10 s
+ * (5 s otherwise, longer if the phone's accessibility settings ask for it).
+ * `focus: true` moves the screen reader to Undo, for when the control that was
+ * used has just disappeared (archive, remove). Slides up 10 px and scales from
+ * 0.98 in 200 ms; with reduced motion it just appears.
  *
  *   toast({ message: 'Deep work logged. 3 of 6 this week, 3 to go.', undo: () => ... });
  */
 import Feather from '@expo/vector-icons/Feather';
-import { useSyncExternalStore } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { AccessibilityInfo, Keyboard, Pressable, StyleSheet, View, type ViewInstance } from 'react-native';
 import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, MOTION } from '@/theme';
+import { focusForScreenReader } from './a11y';
 import { T } from './ui';
 
-export type Toast = { message: string; undo?: () => void; undoLabel?: string };
+export type Toast = { message: string; undo?: () => void; undoLabel?: string; focus?: boolean };
 type Shown = Toast & { id: number };
 
 let current: Shown | null = null;
@@ -27,8 +31,23 @@ export function toast(t: Toast) {
   current = { ...t, id: ++seq };
   lastUndo = t.undo ? { run: t.undo, until: Date.now() + 60_000 } : null;
   if (timer) clearTimeout(timer);
-  timer = setTimeout(dismissToast, t.undo ? MOTION.toast.undoMs : MOTION.toast.visibleMs);
-  AccessibilityInfo.announceForAccessibility(t.undo ? `${t.message} Undo is available.` : t.message);
+  const ms = t.undo ? MOTION.toast.undoMs : MOTION.toast.visibleMs;
+  timer = setTimeout(dismissToast, ms);
+  const id = seq;
+  // Android's "time to take action" setting can ask for longer.
+  try {
+    AccessibilityInfo.getRecommendedTimeoutMillis?.(ms)
+      ?.then((longer) => {
+        if (current?.id !== id || longer <= ms) return;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(dismissToast, longer);
+      })
+      .catch(() => {});
+  } catch {
+    // Not available here: keep the standard time.
+  }
+  // Focusing Undo reads the toast out anyway, so only announce when focus stays put.
+  if (!(t.focus && t.undo)) AccessibilityInfo.announceForAccessibility(t.undo ? `${t.message} Undo is available.` : t.message);
   notify();
 }
 
@@ -67,12 +86,28 @@ export function ToastHost() {
   );
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
+  const undoBtn = useRef<ViewInstance>(null);
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', (e) => setKb(e.endCoordinates.height));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKb(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  const id = t?.id;
+  const focus = !!(t?.focus && t.undo);
+  useEffect(() => {
+    if (!focus) return;
+    const h = setTimeout(() => focusForScreenReader(undoBtn.current), 120);
+    return () => clearTimeout(h);
+  }, [id, focus]);
   if (!t) return null;
   return (
-    <View pointerEvents="box-none" style={[s.region, { bottom: insets.bottom + 64 }]}>
+    <View pointerEvents="box-none" style={[s.region, { bottom: kb ? kb + 12 : insets.bottom + 64 }]}>
       <Animated.View
         key={t.id}
-        accessibilityLiveRegion="polite"
         style={[
           s.toast,
           !reduced && {
@@ -86,7 +121,7 @@ export function ToastHost() {
           {t.message}
         </T>
         {t.undo ? (
-          <Pressable onPress={() => runUndo()} accessibilityRole="button" hitSlop={8} style={({ pressed }) => [s.undo, pressed && { opacity: 0.6 }]}>
+          <Pressable ref={undoBtn} onPress={() => runUndo()} accessibilityRole="button" accessibilityLabel={`${t.undoLabel ?? 'Undo'}: ${t.message}`} hitSlop={8} style={({ pressed }) => [s.undo, pressed && { opacity: 0.6 }]}>
             <T w={700} s={14} c={C.bg}>
               {t.undoLabel ?? 'Undo'}
             </T>

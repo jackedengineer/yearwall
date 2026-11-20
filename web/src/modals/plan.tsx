@@ -48,10 +48,8 @@ export default function PlanSheet() {
             value={p.outcome ?? 'open'}
             labels={{ open: 'Not answered', done: 'Happened', missed: "Didn't happen" }}
             onChange={(v) => {
-              const next = { ...p };
-              if (v === 'open') delete next.outcome;
-              else next.outcome = v as Plan['outcome'];
-              setP(next);
+              // null (not a missing field) so the server clears a stored answer.
+              setP({ ...p, outcome: v === 'open' ? null : (v as Plan['outcome']) });
             }}
           />
         </View>

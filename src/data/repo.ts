@@ -6,6 +6,7 @@
  * Db is a tiny adapter so the same code runs on expo-sqlite (app) and
  * node:sqlite (tests in scripts/).
  */
+import { HABIT_COLOR_IDS } from '../theme';
 import type { Chapter, GoalItem, GoalKey, Habit, HabitColor, Income, JournalEntry, Meta, Plan, Post, Settings, State, WeekInfo } from './types';
 
 export type Row = Record<string, any>;
@@ -64,8 +65,14 @@ export function migrate() {
     db.exec('PRAGMA user_version = 2');
   }
   if (v < 3) {
-    db.tx(() => db.exec(SCHEMA_V3));
-    db.exec('PRAGMA user_version = 3');
+    // One transaction, version included, so a crash mid-way can't leave half a v3 behind.
+    db.tx(() => {
+      for (const [table, col] of V3_COLUMNS) if (!hasColumn(table, col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT`);
+      // While on v2 this phone dropped these fields from what it pulled, but kept the records'
+      // clocks. Pull everything once more; edits not sent yet keep their clocks and still win.
+      db.exec("UPDATE sync_records SET updated_at = 0 WHERE dirty = 0; DELETE FROM sync_meta WHERE key = 'cursor';");
+      db.exec('PRAGMA user_version = 3');
+    });
   }
   // Future schema changes: add `if (v < 4) { ... PRAGMA user_version = 4 }` here.
 }
@@ -77,13 +84,14 @@ CREATE TABLE IF NOT EXISTS sync_meta (key TEXT PRIMARY KEY NOT NULL, value TEXT 
 `;
 
 /** v3 (UX v2): each habit's colour, a plan's "did it happen" answer, and the quarter-goal checklist (JSON). */
-const SCHEMA_V3 = `
-ALTER TABLE habits ADD COLUMN color TEXT;
-ALTER TABLE plans ADD COLUMN outcome TEXT;
-ALTER TABLE goals ADD COLUMN items TEXT;
-`;
+const V3_COLUMNS = [
+  ['habits', 'color'],
+  ['plans', 'outcome'],
+  ['goals', 'items'],
+] as const;
+const hasColumn = (table: string, col: string) => db.all<{ name: string }>(`PRAGMA table_info(${table})`).some((c) => c.name === col);
 
-const COLORS: HabitColor[] = ['green', 'violet', 'blue', 'amber', 'pink', 'teal'];
+const COLORS: readonly HabitColor[] = HABIT_COLOR_IDS;
 const parseItems = (json: string | null | undefined): GoalItem[] | undefined => {
   if (!json) return undefined;
   try {

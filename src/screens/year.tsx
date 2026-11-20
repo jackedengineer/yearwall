@@ -274,6 +274,7 @@ export function Year() {
               accessibilityRole="switch"
               accessibilityState={{ checked: shown }}
               accessibilityLabel={c.name}
+              hitSlop={{ top: 6, bottom: 6 }}
               onPress={() => {
                 if (shown) UI.hideCats.add(c.id);
                 else UI.hideCats.delete(c.id);

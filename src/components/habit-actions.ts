@@ -48,7 +48,7 @@ export function archiveHabit(h: Habit) {
   const before = S.meta.habits.find((x) => x.id === h.id);
   if (!before) return;
   actions.archiveHabit(h.id);
-  toast({ message: `${h.name} archived. Its history stays.`, undo: () => actions.saveHabit(before) });
+  toast({ message: `${h.name} archived. Its history stays.`, undo: () => actions.saveHabit(before), focus: true });
 }
 
 /** Asks first. Resolves true when the habit was deleted or archived. */

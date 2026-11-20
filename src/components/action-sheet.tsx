@@ -3,19 +3,23 @@
  * The back button, a tap outside and Cancel all close it.
  */
 import Feather from '@expo/vector-icons/Feather';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet } from 'react-native';
+import Animated, { Easing, ReduceMotion, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { C } from '@/theme';
+import { C, MOTION } from '@/theme';
 import { type IconName, T } from './ui';
 
 export type SheetAction = { label: string; icon: IconName; onPress: () => void; danger?: boolean };
 
+// The scrim fades (the Modal's own animation) while the sheet slides up; reduced motion skips the slide.
+const slideUp = SlideInDown.duration(MOTION.panel.ms).easing(Easing.bezier(0.2, 0.8, 0.2, 1)).reduceMotion(ReduceMotion.System);
+
 export function ActionSheet({ title, actions, open, onClose }: { title: string; actions: SheetAction[]; open: boolean; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   return (
-    <Modal visible={open} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
+    <Modal visible={open} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
       <Pressable style={s.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close menu" />
-      <View style={[s.sheet, { paddingBottom: insets.bottom + 10 }]} accessibilityViewIsModal>
+      <Animated.View entering={slideUp} style={[s.sheet, { paddingBottom: insets.bottom + 10 }]} accessibilityViewIsModal>
         <T w={600} s={13} c={C.mut} style={s.title} accessibilityRole="header">
           {title}
         </T>
@@ -41,7 +45,7 @@ export function ActionSheet({ title, actions, open, onClose }: { title: string; 
             Cancel
           </T>
         </Pressable>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }

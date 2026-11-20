@@ -21,7 +21,7 @@ export type ShareOptions = { hidePlans: boolean; stats: boolean; by: 'habits' | 
 
 const card = { width: 360, height: 450, backgroundColor: C.bg, padding: 22, gap: 12, overflow: 'hidden' as const };
 const Small = ({ s, c = C.mut, w = 600, children, lines }: { s: number; c?: string; w?: Weight; children: ReactNode; lines?: number }) => (
-  <T s={s} c={c} w={w} numberOfLines={lines} style={{ lineHeight: Math.round(s * 1.3) }}>
+  <T allowFontScaling={false} s={s} c={c} w={w} numberOfLines={lines} style={{ lineHeight: Math.round(s * 1.3) }}>
     {children}
   </T>
 );
@@ -47,7 +47,7 @@ function Header({ over, title, under }: { over: string; title: string; under: st
   return (
     <View style={{ gap: 2 }}>
       <Small s={10}>{over}</Small>
-      <T w={700} s={21} numberOfLines={1} style={{ lineHeight: 26 }}>
+      <T allowFontScaling={false} w={700} s={21} numberOfLines={1} style={{ lineHeight: 26 }}>
         {title}
       </T>
       <Small s={10} w={500}>
@@ -148,7 +148,7 @@ export function WeekShareCard({ w, o }: { w: number; o: ShareOptions }) {
                 })}
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <T s={8.5} w={500} c={C.tx2} numberOfLines={1} style={{ textAlign: 'right', lineHeight: 11 }}>
+                <T allowFontScaling={false} s={8.5} w={500} c={C.tx2} numberOfLines={1} style={{ textAlign: 'right', lineHeight: 11 }}>
                   {ps.length ? (o.hidePlans ? plural(ps.length, 'plan') : ps.map((p) => p.title).join(' · ')) : ''}
                 </T>
               </View>
@@ -258,7 +258,7 @@ export function YearShareCard({ o }: { o: ShareOptions }) {
         <View style={{ height: 10 }}>
           {labels.map((l, i) =>
             l ? (
-              <T key={i} s={6.5} w={600} c={C.mut2} style={{ position: 'absolute', left: i * 6, top: 0, lineHeight: 9 }}>
+              <T allowFontScaling={false} key={i} s={6.5} w={600} c={C.mut2} style={{ position: 'absolute', left: i * 6, top: 0, lineHeight: 9 }}>
                 {l}
               </T>
             ) : null,
