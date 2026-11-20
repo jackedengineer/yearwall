@@ -1,4 +1,5 @@
-import { useEffect, useState, type ComponentType } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { useMediaQuery } from '@web/lib/media';
 import { S, UI, commit } from '@core/data/state';
 import { todayS } from '@core/utils/dates';
 import { boot, checkKey, hasData, startFresh, type Boot } from '@web/data/sync-web';
@@ -162,6 +163,27 @@ function Shell() {
   const tab = lastTab;
   const Modal = m && !(TABS as readonly string[]).includes(m.route) ? MODALS[m.route as ModalRoute] : null;
   const Page = PAGES[tab].C;
+  // On wide screens a week opened from the board is a drawer beside it, not a dialog over it.
+  const wide = useMediaQuery('(min-width: 1024px)');
+  const drawer = !!Modal && m?.route === '/week/[w]' && tab === '/year' && wide;
+  const drawerSide = new URLSearchParams(loc.split('?')[1] || '').get('side') === 'left' ? 'left' : 'right';
+
+  // Focus goes back to whatever opened the dialog or drawer when it closes:
+  // remember the last thing focused outside any dialog.
+  const opener = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    const onFocus = (e: FocusEvent) => {
+      const el = e.target as HTMLElement;
+      if (el instanceof HTMLElement && !el.closest('[role=dialog], [role=alertdialog], .toast-region')) opener.current = el;
+    };
+    document.addEventListener('focusin', onFocus);
+    return () => document.removeEventListener('focusin', onFocus);
+  }, []);
+  useEffect(() => {
+    if (!Modal && wasOpen.current && opener.current?.isConnected) opener.current.focus({ preventScroll: true });
+    wasOpen.current = !!Modal;
+  }, [Modal]);
 
   // Unknown address: go to Today.
   useEffect(() => {
@@ -194,8 +216,8 @@ function Shell() {
 
   // Keep the page behind a dialog from scrolling.
   useEffect(() => {
-    document.body.classList.toggle('locked', !!Modal);
-  }, [Modal]);
+    document.body.classList.toggle('locked', !!Modal && !drawer);
+  }, [Modal, drawer]);
 
   useEffect(() => {
     document.title = Modal ? 'Year Wall' : `${PAGES[tab].title} · Year Wall`;
@@ -229,9 +251,13 @@ function Shell() {
           <Page />
         </div>
       </div>
-      {Modal ? (
+      {Modal && drawer ? (
+        <aside className={`drawer ${drawerSide}`} role="dialog" aria-modal="false" aria-labelledby="modal-title">
+          <Modal />
+        </aside>
+      ) : Modal ? (
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && router.back()}>
-          <div className="dialog" role="dialog" aria-modal="true">
+          <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
             <Modal />
           </div>
         </div>

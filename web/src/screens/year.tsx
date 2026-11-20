@@ -1,7 +1,11 @@
 // Web version of src/screens/year.tsx (ported from the phone app).
 import { router } from '@web/lib/router';
-import { memo, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from '@web/lib/rn';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { css, Pressable, StyleSheet, View } from '@web/lib/rn';
+import { openWeek } from '@web/components/open-week';
+import { useDragToPlan } from '@web/components/drag-plan';
+import { reducedMotion } from '@web/lib/media';
+import { plansInWeek } from '@core/utils/progress';
 import { Bar, Card, Chip, Chips, Field, Screen, Section, T } from '@web/ui';
 import { CATS } from '@core/constants';
 import { commit, S, UI } from '@core/data/state';
@@ -11,14 +15,16 @@ import { C } from '@web/lib/theme';
 import { addD, clampWeek, diff, dowI, ds, fmt, fmtRange, MONTHS, pd, plural, todayS, weekDays, weekOf, weekStart, WEEKS, YEAR_END, YEAR_START } from '@core/utils/dates';
 import { barColor, capOn, chapterLabelForMonth, isPerfect, monthsOfYear, yearStats } from '@core/utils/logic';
 
-const WeekCard = memo(function WeekCard({ w, now, perfect, bars }: { w: number; now: boolean; perfect: boolean; bars: { color: string; cap: string | null; today: boolean }[] }) {
+const WeekCard = memo(function WeekCard({ w, now, perfect, bars }: { w: number; now: boolean; perfect: boolean; bars: { date: string; color: string; cap: string | null; today: boolean }[] }) {
   const days = weekDays(w);
   const focus = S.meta.weeks[String(w)]?.focus;
+  const nPlans = plansInWeek(w).length;
   return (
     <Pressable
-      onPress={() => router.push({ pathname: '/week/[w]', params: { w: String(w) } })}
+      nativeID={`wk-${w}`}
+      onPress={() => openWeek(w)}
       accessibilityRole="button"
-      accessibilityLabel={`Week ${w}, ${fmtRange(days[0], days[6])}${focus ? `, ${focus}` : ''}${perfect ? ', perfect week' : ''}`}
+      accessibilityLabel={`Open week ${w}, ${fmtRange(days[0], days[6])}, ${plural(nPlans, 'plan')}${focus ? `, ${focus}` : ''}${perfect ? ', perfect week' : ''}`}
       style={({ pressed }) => [s.wk, now && s.wkNow, perfect && (now ? s.wkNowPerfect : s.wkPerfect), pressed && { opacity: 0.7 }]}
     >
       <View style={s.wl}>
@@ -34,10 +40,10 @@ const WeekCard = memo(function WeekCard({ w, now, perfect, bars }: { w: number; 
         ) : null}
       </View>
       <View style={s.bars}>
-        {bars.map((b, i) => (
-          <View key={i} style={[s.bar, { backgroundColor: b.color }, b.today && s.barToday]}>
+        {bars.map((b) => (
+          <div key={b.date} data-date={b.date} className="v daybar" style={css([s.bar, { backgroundColor: b.color }, b.today && s.barToday])}>
             {b.cap ? <View style={[s.cap, { backgroundColor: b.cap }]} /> : null}
-          </View>
+          </div>
         ))}
       </View>
     </Pressable>
@@ -63,7 +69,7 @@ function WeeksBoard() {
             {[0, 1, 2, 3, 4].map((i) => {
               const w = mo.weeks[i];
               if (!w) return <View key={i} style={{ flex: 1 }} />;
-              const bars = weekDays(w).map((d) => ({ color: barColor(d, t), cap: capOn(d), today: d === t }));
+              const bars = weekDays(w).map((d) => ({ date: d, color: barColor(d, t), cap: capOn(d), today: d === t }));
               return (
                 <View key={i} style={{ flex: 1 }}>
                   <WeekCard w={w} now={w === cw} perfect={w <= cw && isPerfect(w, t)} bars={bars} />
@@ -113,18 +119,27 @@ function DaysBoard() {
               {cells.map((d, i) => (
                 <View key={i} style={{ width: `${100 / 7}%` as `${number}%`, padding: 1.5 }}>
                   {d ? (
-                    <Pressable
-                      disabled={d > t || d < YEAR_START || d > YEAR_END}
-                      onPress={() => {
-                        UI.day = d;
-                        commit();
-                        router.navigate('/');
-                      }}
-                      accessibilityLabel={fmt(d, { wd: true })}
-                      style={[s.cd, { backgroundColor: d < YEAR_START || d > YEAR_END ? '#100F0E' : barColor(d, t) }, d === t && s.cdToday]}
-                    >
-                      {capOn(d) && d >= YEAR_START && d <= YEAR_END ? <View style={[s.cap, { height: 3, backgroundColor: capOn(d)! }]} /> : null}
-                    </Pressable>
+                    d < YEAR_START || d > YEAR_END ? (
+                      <View style={[s.cd, { backgroundColor: '#100F0E' }]} />
+                    ) : (
+                      <button
+                        type="button"
+                        data-date={d}
+                        className="v press daycell"
+                        onClick={() => {
+                          // Past days open in Today to log them; future days open their week to plan.
+                          if (d <= t) {
+                            UI.day = d;
+                            commit();
+                            router.navigate('/');
+                          } else openWeek(weekOf(d), { from: d, to: d, focus: 'plan' });
+                        }}
+                        aria-label={d <= t ? `Log ${fmt(d, { wd: true })}` : `Add plan on ${fmt(d, { wd: true })}`}
+                        style={css([s.cd, { backgroundColor: barColor(d, t) }, d === t && s.cdToday])}
+                      >
+                        {capOn(d) ? <View style={[s.cap, { height: 3, backgroundColor: capOn(d)! }]} /> : null}
+                      </button>
+                    )
                   ) : (
                     <View style={{ aspectRatio: 1 }} />
                   )}
@@ -183,6 +198,23 @@ export function Year() {
   const pct = Math.round((dayIdx / (WEEKS * 7)) * 100);
   const st = yearStats(t);
   const q = Math.min(4, Math.floor((cw - 1) / 13) + 1);
+  const board = useRef<HTMLDivElement>(null);
+  const planRange = useCallback((a: string, b: string, x: number) => openWeek(clampWeek(weekOf(a)), { from: a, to: b, focus: 'plan', x }), []);
+  useDragToPlan(board, planRange);
+  /** Scroll to the current week and open it. */
+  const showThisWeek = () => {
+    if (UI.yearView !== 'weeks') {
+      UI.yearView = 'weeks';
+      commit();
+    }
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`wk-${cw}`);
+      el?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' });
+      el?.focus({ preventScroll: true });
+      const r = el?.getBoundingClientRect();
+      openWeek(cw, { x: r ? r.left + r.width / 2 : undefined });
+    });
+  };
 
   return (
     <Screen>
@@ -251,9 +283,12 @@ export function Year() {
             </Pressable>
           ))}
         </View>
-        <T s={12} c={C.mut}>
-          {UI.yearView === 'weeks' ? 'Click a week to open it' : 'Click a day to log it'}
-        </T>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <T s={12} c={C.mut}>
+            {UI.yearView === 'weeks' ? 'Click a week to open it. Drag across days to plan.' : 'Click a day to log it. Drag across days to plan.'}
+          </T>
+          <Chip label="This week" onPress={showThisWeek} />
+        </View>
       </View>
 
       <Chips>
@@ -272,7 +307,9 @@ export function Year() {
         ))}
       </Chips>
 
-      {UI.yearView === 'weeks' ? <WeeksBoard /> : <DaysBoard />}
+      <div ref={board} className="board">
+        {UI.yearView === 'weeks' ? <WeeksBoard /> : <DaysBoard />}
+      </div>
 
       <Section left="Quarter goals" right="Chapter year quarters" />
       {([1, 2, 3, 4] as const).map((qq) => (

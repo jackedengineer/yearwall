@@ -2,7 +2,7 @@
  * The web version of the phone's UI kit (src/components/ui.tsx): same
  * components and props, built from plain DOM elements.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { addD, fmt, isDate, todayS } from '@core/utils/dates';
 import Feather, { type IconName } from '@web/lib/icons';
 import { Pressable, StyleSheet, Text, View, css, type StyleProp, type TextStyle, type ViewStyle } from '@web/lib/rn';
@@ -39,17 +39,25 @@ export function Screen({ children }: { children: ReactNode }) {
 
 /** The content of a dialog (every non-tab route). The dialog frame itself is in App.tsx. */
 export function ModalScreen({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {
+  const head = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && router.back();
+    // Screen readers and keyboards start at the title, unless a field asked for focus.
+    if (!document.activeElement || document.activeElement === document.body || !head.current?.closest('[role=dialog]')?.contains(document.activeElement)) head.current?.focus({ preventScroll: true });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      // Esc closes menus first; only a bare Esc closes the dialog.
+      if (document.querySelector('[role=menu], [role=alertdialog]')) return;
+      router.back();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   return (
     <>
       <View style={styles.modalHead}>
-        <T w={700} s={22} style={{ flex: 1 }}>
+        <h2 id="modal-title" ref={head} tabIndex={-1} className="modal-title">
           {title}
-        </T>
+        </h2>
         {right}
         <IconBtn name="x" label="Close" onPress={() => router.back()} />
       </View>
