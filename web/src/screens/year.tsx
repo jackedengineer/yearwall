@@ -33,12 +33,12 @@ const WeekCard = memo(function WeekCard({ w, now, perfect, bars, spot, spotName 
       nativeID={`wk-${w}`}
       onPress={() => openWeek(w)}
       accessibilityRole="button"
-      accessibilityLabel={`W${w}, open week ${w}, ${fmtRange(days[0], days[6])}, ${plural(nPlans, 'plan')}${focus ? `, ${focus}` : ''}${perfect ? ', perfect week' : ''}${barsText ? `, ${barsText}` : ''}`}
+      accessibilityLabel={`W${w}${spot ? ` ${spot}` : now ? ' Now' : ''}, open week ${w}, ${fmtRange(days[0], days[6])}, ${plural(nPlans, 'plan')}${focus ? `, ${focus}` : ''}${perfect ? ', perfect week' : ''}${barsText ? `, ${barsText}` : ''}`}
       style={({ pressed }) => [s.wk, now && s.wkNow, perfect && (now ? s.wkNowPerfect : s.wkPerfect), pressed && { opacity: 0.7 }]}
     >
       <View style={s.wl}>
         <T w={600} s={10} c={C.mut2}>
-          W{w}
+          W{w}{' ' /* so "W1 Now" reads as two words, matching the label */}
         </T>
         {spot ? (
           <T w={700} s={10} c={C.tx2}>

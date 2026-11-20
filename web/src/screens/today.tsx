@@ -52,7 +52,7 @@ function ChapterCard({ d }: { d: string }) {
   const w = clampWeek(weekOf(d));
   const focus = S.meta.weeks[String(w)]?.focus;
   return (
-    <Card style={{ padding: 16, gap: 12 }} onPress={() => router.navigate('/chapter')} label={`Chapter ${c.n}, ${c.name}`}>
+    <Card style={{ padding: 16, gap: 12 }} onPress={() => router.navigate('/chapter')}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <View>
           <T w={600} s={12} c={C.mut}>

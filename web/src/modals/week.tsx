@@ -214,14 +214,14 @@ function DayList({ days }: { days: string[] }) {
               type="button"
               className={today ? 'wday-date today' : 'wday-date'}
               disabled={d > t}
-              aria-label={`Open ${fmt(d, { wd: true })} in Today`}
+              aria-label={`${DOW[dowI(d)]} ${pd(d).getDate()}, open ${fmt(d)} in Today`}
               onClick={() => {
                 UI.day = d;
                 commit();
                 router.dismissTo('/');
               }}
             >
-              <span className="wday-dow">{DOW[dowI(d)]}</span>
+              <span className="wday-dow">{DOW[dowI(d)]}</span>{' '}
               <span className="wday-num">{pd(d).getDate()}</span>
             </button>
             <div className="wday-body">
