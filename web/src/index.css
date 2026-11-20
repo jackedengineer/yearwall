@@ -1629,3 +1629,131 @@ a.tab:focus-visible,
   width: 16px;
   background: var(--lit);
 }
+
+/* ---------- share ---------- */
+
+.share-tabs {
+  display: flex;
+  padding: 3px;
+  gap: 2px;
+  background: #141312;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.share-tab {
+  flex: 1;
+  min-height: 38px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--mut);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.share-tab.on {
+  background: #2a2725;
+  color: var(--tx);
+}
+
+.share-tab:focus-visible,
+.share-check input:focus-visible,
+.share-radio input:focus-visible {
+  outline: 2px solid var(--lit);
+  outline-offset: 2px;
+}
+
+.share-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.share-nav-label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.share-preview {
+  display: flex;
+  justify-content: center;
+}
+
+.share-frame {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.share-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.share-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.share-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--lit);
+}
+
+.share-by {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--mut);
+}
+
+.share-by > span {
+  margin-right: 4px;
+}
+
+.share-radio {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #2e2b28;
+  border-radius: 999px;
+  background: #1a1817;
+  color: var(--tx2, #c9c4be);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.share-radio.on {
+  background: var(--lit);
+  border-color: var(--lit);
+  color: var(--bg);
+}
+
+.share-radio input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.share-radio:has(input:focus-visible) {
+  outline: 2px solid var(--lit);
+  outline-offset: 2px;
+}

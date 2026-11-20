@@ -157,6 +157,36 @@ export function rangeFromDays(w: number, days: number[]) {
 /** "Dec 7–11", "Dec 7", "Dec 30 – Jan 2" */
 export const whenLabel = (start: string, end: string) => fmtRange(start, end).replace(/ – (\d+)$/, '–$1');
 
+/* ---------- share images ---------- */
+
+/** Days a habit was done between two dates (inclusive), counting up to `ref`. */
+export function doneDays(h: Habit, from: string, to: string, ref = todayS()) {
+  let n = 0;
+  for (let d = from; d <= to && d <= ref; d = addD(d, 1)) if (isActive(h, d) && doneOn(h, d)) n++;
+  return n;
+}
+
+/** Days a habit was scheduled between two dates (inclusive), counting up to `ref`. */
+export function scheduledDays(h: Habit, from: string, to: string, ref = todayS()) {
+  let n = 0;
+  for (let d = from; d <= to && d <= ref; d = addD(d, 1)) if (isActive(h, d)) n++;
+  return n;
+}
+
+/** A month as calendar rows (Monday first); null pads the first and last weeks. `ym` is 'YYYY-MM'. */
+export function monthGrid(ym: string): (string | null)[][] {
+  const [y, m] = ym.split('-').map(Number);
+  const first = `${ym}-01`;
+  const days = new Date(y, m, 0).getDate();
+  const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  const cells: (string | null)[] = Array(lead).fill(null);
+  for (let i = 1; i <= days; i++) cells.push(addD(first, i - 1));
+  while (cells.length % 7) cells.push(null);
+  const rows: (string | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+  return rows;
+}
+
 /* ---------- plan outcomes ---------- */
 
 /** A plan whose last day has passed and nobody has said whether it happened. */
