@@ -2,12 +2,14 @@
 import { router, useLocalSearchParams } from '@web/lib/router';
 import { useState } from 'react';
 import { Pressable, View } from '@web/lib/rn';
-import { Btn, Chip, Chips, DateField, Field, Label, ModalScreen, T } from '@web/ui';
+import { Btn, Chip, Chips, DateField, Field, Label, ModalScreen, Pills, T } from '@web/ui';
 import { CATS } from '@core/constants';
 import { S } from '@core/data/state';
 import { actions } from '@core/data/store';
 import type { Plan } from '@core/data/types';
 import { C } from '@web/lib/theme';
+import { toast } from '@web/components/toast';
+import { todayS } from '@core/utils/dates';
 
 export default function PlanSheet() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,6 +40,22 @@ export default function PlanSheet() {
         <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: p.milestone ? C.lit : '#4A4642', backgroundColor: p.milestone ? C.lit : 'transparent' }} />
         <T>Count down to it on Today</T>
       </Pressable>
+      {(p.end || p.start) < todayS() ? (
+        <View>
+          <Label>Did it happen?</Label>
+          <Pills
+            options={['open', 'done', 'missed']}
+            value={p.outcome ?? 'open'}
+            labels={{ open: 'Not answered', done: 'Happened', missed: "Didn't happen" }}
+            onChange={(v) => {
+              const next = { ...p };
+              if (v === 'open') delete next.outcome;
+              else next.outcome = v as Plan['outcome'];
+              setP(next);
+            }}
+          />
+        </View>
+      ) : null}
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <Btn
           label="Save plan"
@@ -52,8 +70,9 @@ export default function PlanSheet() {
           label="Delete"
           kind="danger"
           onPress={() => {
-            actions.deletePlan(p.id);
+            const gone = actions.deletePlan(p.id);
             router.back();
+            if (gone) toast({ message: `Removed "${gone.title}".`, undo: () => actions.savePlan(gone) });
           }}
         />
       </View>

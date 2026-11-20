@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from '@web/lib/rn';
 import { Banner, Card, Chip, Empty, Field, IconBtn, Screen, Section, Sep, T } from '@web/ui';
 import { HabitCards } from '@web/components/habit-card';
+import { PlanOutcome, PlansToAnswer } from '@web/components/plan-outcome';
 import { CAT, STATUS_COLOR } from '@core/constants';
 import { commit, S, UI } from '@core/data/state';
 import { actions } from '@core/data/store';
@@ -227,6 +228,8 @@ export function Today() {
         </Empty>
       )}
 
+      {d === t ? <PlansToAnswer /> : null}
+
       <Section left="Plans and posts" right={plans.length + posts.length ? String(plans.length + posts.length) : undefined} />
       {plans.length + posts.length ? (
         <Card>
@@ -242,6 +245,11 @@ export function Today() {
                   {p.end !== p.start ? fmtRange(p.start, p.end) : 'Plan'}
                 </T>
               </Pressable>
+              {(p.end || p.start) <= d && d < t ? (
+                <View style={{ paddingHorizontal: 14, paddingBottom: 10, marginTop: -4 }}>
+                  <PlanOutcome p={p} />
+                </View>
+              ) : null}
             </View>
           ))}
           {posts.map((p, i) => (

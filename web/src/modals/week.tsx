@@ -15,6 +15,8 @@ import { doneOn, isActive, journalOn, plansOn, targetOn, valueOn } from '@core/u
 import { habitColor, logMessage, weekProgress, whenLabel } from '@core/utils/progress';
 import { colorVars } from '@web/components/habit-card';
 import { toast } from '@web/components/toast';
+import { PlanOutcome } from '@web/components/plan-outcome';
+import { plansInWeek } from '@core/utils/progress';
 import Feather from '@web/lib/icons';
 import { router, useLocalSearchParams } from '@web/lib/router';
 import { C } from '@web/lib/theme';
@@ -174,10 +176,12 @@ function DayList({ days }: { days: string[] }) {
   const t = todayS();
   const posts = S.posts.filter((p) => days.includes(p.date));
   const posted = posts.filter((p) => p.status === 'Posted').length;
+  const ended = plansInWeek(weekOf(days[0])).filter((p) => (p.end || p.start) < t);
+  const happened = ended.filter((p) => p.outcome === 'done').length;
   return (
     <section aria-label="Days">
       <div className="wsec-head">
-        <span>Days</span>
+        <span>Days{ended.length ? ` · ${happened} of ${ended.length} plans happened` : ''}</span>
         <span>
           {plural(posts.length, 'post')}, {posted} posted
         </span>
@@ -214,6 +218,11 @@ function DayList({ days }: { days: string[] }) {
                   <button type="button" className="icon-btn small" aria-label={`Remove ${p.title}`} onClick={() => removePlan(p)}>
                     <Feather name="x" size={14} />
                   </button>
+                  {(p.end || p.start) === d || (d === days[6] && (p.end || p.start) > d) ? (
+                    <div className="wplan-outcome">
+                      <PlanOutcome p={p} />
+                    </div>
+                  ) : null}
                 </div>
               ))}
               {po.length ? (
