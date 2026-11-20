@@ -197,6 +197,12 @@ export const isRunning = (h: Habit, ref = todayS()) => h.activeFrom <= ref && (!
 /** A plan whose last day has passed and nobody has said whether it happened. */
 export const needsOutcome = (p: Plan, ref = todayS()) => (p.end || p.start) < ref && !p.outcome;
 
+/** Plans that ended in the last two weeks and still need an answer (most recent first). */
+export const plansToAnswer = (ref = todayS()) =>
+  S.meta.plans
+    .filter((p) => needsOutcome(p, ref) && (p.end || p.start) >= addD(ref, -14))
+    .sort((a, b) => ((a.end || a.start) < (b.end || b.start) ? 1 : -1));
+
 /* ---------- quarter goals ---------- */
 
 export const MAX_GOALS = 5;

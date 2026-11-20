@@ -7,8 +7,8 @@ import { useRef } from 'react';
 import { S } from '@core/data/state';
 import { actions } from '@core/data/store';
 import type { Plan } from '@core/data/types';
-import { addD, fmt, todayS } from '@core/utils/dates';
-import { needsOutcome } from '@core/utils/progress';
+import { fmt } from '@core/utils/dates';
+import { needsOutcome, plansToAnswer } from '@core/utils/progress';
 import { CAT } from '@core/constants';
 import Feather from '@web/lib/icons';
 
@@ -52,11 +52,6 @@ function OutcomeInner({ p, answer }: { p: Plan; answer: (e: { currentTarget: HTM
   );
 }
 
-/** Plans that ended in the last two weeks and still need an answer (most recent first). */
-export const plansToAnswer = (ref = todayS()) =>
-  S.meta.plans
-    .filter((p) => needsOutcome(p, ref) && (p.end || p.start) >= addD(ref, -14))
-    .sort((a, b) => ((a.end || a.start) < (b.end || b.start) ? 1 : -1));
 
 /**
  * A short list on Today: the recent plans that still need a Yes or No.

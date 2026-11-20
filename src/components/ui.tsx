@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
-import { ComponentProps, ReactNode, useEffect, useState } from 'react';
+import { ComponentProps, ReactNode, Ref, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
@@ -12,6 +12,8 @@ import {
   Text,
   TextInput,
   TextInputProps,
+  type TextInputInstance,
+  type ScrollViewInstance,
   TextProps,
   TextStyle,
   View,
@@ -19,6 +21,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, font, Weight } from '@/theme';
+import { ScrollCtx, type ScrollInfo } from './scroll-ctx';
 import { addD, fmt, isDate, todayS } from '@/utils/dates';
 
 export type IconName = ComponentProps<typeof Feather>['name'];
@@ -31,16 +34,27 @@ export function T({ w = 500, s = 14, c = C.tx, style, ...rest }: TextProps & { w
 /* ---------- layout ---------- */
 export function Screen({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
+  const ref = useRef<ScrollViewInstance>(null);
+  const y = useRef(0);
+  // The tour scrolls its targets into view through this.
+  const scroll = useMemo<ScrollInfo>(() => ({ ref, y }), []);
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Image source={require('../../assets/glow.png')} style={styles.glow} resizeMode="stretch" />
-      <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 14, paddingHorizontal: 18, paddingBottom: 40, gap: 18 }}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
-        {children}
-      </ScrollView>
+      <ScrollCtx.Provider value={scroll}>
+        <ScrollView
+          ref={ref}
+          onScroll={(e) => {
+            y.current = e.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={32}
+          contentContainerStyle={{ paddingTop: insets.top + 14, paddingHorizontal: 18, paddingBottom: 96, gap: 18 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          {children}
+        </ScrollView>
+      </ScrollCtx.Provider>
     </KeyboardAvoidingView>
   );
 }
@@ -200,11 +214,12 @@ export function Label({ children }: { children: string }) {
   );
 }
 
-export function Field({ label, style, multiline, ...rest }: TextInputProps & { label?: string }) {
+export function Field({ label, style, multiline, ref, ...rest }: TextInputProps & { label?: string; ref?: Ref<TextInputInstance> }) {
   return (
     <View>
       {label ? <Label>{label}</Label> : null}
       <TextInput
+        ref={ref}
         placeholderTextColor="#6F6A65"
         selectionColor={C.lit}
         keyboardAppearance="dark"

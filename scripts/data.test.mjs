@@ -44,6 +44,25 @@ const test = (name, fn) => {
 };
 const S = state.S;
 const H = (id) => S.meta.habits.find((h) => h.id === id);
+/** A phone on the release before UX v2: its SQLite (schema v2) has no colour, outcome or checklist columns. */
+const strip = (o, key) => {
+  const { [key]: _, ...rest } = o;
+  return rest;
+};
+const oldPhonePersist = () => ({
+  ...repo,
+  saveHabit: (h, sort) => repo.saveHabit(strip(h, 'color'), sort),
+  savePlan: (p) => repo.savePlan(strip(p, 'outcome')),
+  saveGoal: (q, text, done) => repo.saveGoal(q, text, done),
+  loadAll: () => {
+    const st = repo.loadAll();
+    if (!st) return st;
+    st.meta.habits = st.meta.habits.map((h) => strip(h, 'color'));
+    st.meta.plans = st.meta.plans.map((p) => strip(p, 'outcome'));
+    for (const q of ['q1', 'q2', 'q3', 'q4']) st.meta.goals[q] = strip(st.meta.goals[q], 'items');
+    return st;
+  },
+});
 const plan = (id) => S.meta.plans.find((p) => p.id === id);
 
 const db = adapter();
@@ -87,7 +106,44 @@ test('reloading from SQLite gives the same data', () => {
 
 test('migrate is safe to run twice', () => {
   repo.migrate();
-  assert.equal(db.all('PRAGMA user_version')[0].user_version, 2);
+  assert.equal(db.all('PRAGMA user_version')[0].user_version, 3);
+});
+
+test('a schema v2 phone upgrades to v3 and keeps its data', () => {
+  const d2 = adapter();
+  repo.setDb(d2);
+  repo.migrate();
+  // Turn it back into the v2 database a phone on the current release has.
+  d2.exec('ALTER TABLE habits DROP COLUMN color; ALTER TABLE plans DROP COLUMN outcome; ALTER TABLE goals DROP COLUMN items; PRAGMA user_version = 2;');
+  d2.run("INSERT INTO settings (key, value) VALUES ('settings', ?)", [JSON.stringify(S.meta.settings)]);
+  d2.run("INSERT INTO habits (id, sort, name, type, step, days_per_week, active_from) VALUES ('h1', 0, 'Yoga', 'minutes', 5, 7, '2026-11-20')");
+  d2.run("INSERT INTO plans (id, title, start_date, end_date, cat) VALUES ('p1', 'Trip', '2026-11-27', '2026-11-29', 'travel')");
+  d2.run("INSERT INTO goals (quarter, text, done) VALUES (1, 'Ship it', 0)");
+  store.initStore(d2);
+  assert.equal(d2.all('PRAGMA user_version')[0].user_version, 3);
+  assert.equal(H('h1').name, 'Yoga');
+  assert.equal(H('h1').color, undefined); // no colour yet: it comes from its position
+  assert.equal(plan('p1').outcome, undefined);
+  assert.deepEqual(S.meta.goals.q1, { text: 'Ship it', done: false });
+  // From now on colour, the answer and the checklist survive a restart.
+  store.actions.saveHabit({ ...H('h1'), color: 'teal' });
+  store.actions.setPlanOutcome('p1', 'missed');
+  store.actions.saveGoalItems(1, [{ id: 'q1-1', text: 'Ship it', done: true }, { id: 'q1-2', text: 'Write it up', done: false }]);
+  store.initStore(d2);
+  assert.equal(H('h1').color, 'teal');
+  assert.equal(plan('p1').outcome, 'missed');
+  assert.deepEqual(S.meta.goals.q1.items.map((i) => [i.text, i.done]), [['Ship it', true], ['Write it up', false]]);
+  assert.equal(S.meta.goals.q1.text, 'Ship it\nWrite it up');
+  // Clearing the answer clears it on disk too.
+  store.actions.setPlanOutcome('p1', null);
+  store.initStore(d2);
+  assert.equal(plan('p1').outcome, undefined);
+  // Bad JSON in the checklist column falls back to the text.
+  d2.run("UPDATE goals SET items = 'not json' WHERE quarter = 1");
+  store.initStore(d2);
+  assert.equal(S.meta.goals.q1.items, undefined);
+  assert.equal(prog.goalItems(S.meta.goals.q1, 'q1').length, 2);
+  store.initStore(db); // back to the main test database
 });
 
 /* ---------- habit logic ---------- */
@@ -345,8 +401,9 @@ test('goal items and the migration from text', () => {
   // Every item done marks the quarter done for older clients.
   store.actions.saveGoalItems(1, g.items.map((i) => ({ ...i, done: true })));
   assert.equal(S.meta.goals.q1.done, true);
-  // The phone (schema v2) keeps the text, so its goals still show.
+  // The phone keeps the checklist (schema v3) and the text, so older clients still show the goals.
   assert.equal(repo.loadAll().meta.goals.q1.text, 'Launch the tracker\nShip the gateway');
+  assert.equal(repo.loadAll().meta.goals.q1.items.length, 2);
 });
 
 test('archiving keeps history and never moves an earlier end date', () => {
@@ -410,9 +467,15 @@ test('export then import into a fresh database round-trips', () => {
   assert.equal(r.meta.plans.length, before.meta.plans.length);
   assert.deepEqual(r.logs, before.logs);
   assert.deepEqual(r.journal['2026-11']['2026-11-21'], { text: 'Learned how to learn.', feynman: '', energy: null });
-  // Backups carry the new fields. (The phone's SQLite stores them from schema v3, step 10.)
+  // Backups carry the new fields, and the phone's SQLite (schema v3) keeps them.
   assert.equal(before.meta.plans.find((x) => x.id === 'pl1').outcome, 'missed');
   assert.equal(before.meta.goals.q1.items.length, 2);
+  assert.equal(r.meta.plans.find((x) => x.id === 'pl1').outcome, 'missed');
+  assert.deepEqual(r.meta.goals.q1, before.meta.goals.q1);
+  assert.deepEqual(
+    r.meta.habits.map((h) => h.color),
+    before.meta.habits.map((h) => h.color),
+  );
   assert.throws(() => store.actions.importJson('{"hello":1}'));
 });
 
@@ -623,7 +686,7 @@ await atest('an old phone and the new web app editing the same habit, plan and g
   assert.equal(plan('pl1').outcome, 'done');
   assert.equal(repo.loadAll().meta.goals.q1.text, 'Launch the tracker\nShip the gateway');
   // The old phone restarts. Its SQLite (schema v2) has no colour, outcome or checklist columns.
-  store.initStore(A.pdb);
+  store.initStore(A.pdb, oldPhonePersist());
   A = wire(A.pdb);
   assert.equal(H('h_teach').color, undefined);
   assert.equal(plan('pl1').outcome, undefined);
@@ -645,7 +708,7 @@ await atest('an old phone and the new web app editing the same habit, plan and g
   // Deleting a habit re-saves (and re-sends) every other habit on the old phone; their colours survive too.
   await otherDevice([{ k: 'habit', i: 'h_books', u: Date.now() + 40000, d: { ...H('h_books'), sort: 3, color: 'amber' } }]);
   await A.engine.syncNow();
-  store.initStore(A.pdb); // another restart: the colour isn't in its SQLite
+  store.initStore(A.pdb, oldPhonePersist()); // another restart: the colour isn't in its SQLite
   A = wire(A.pdb);
   store.actions.deleteHabit('h_yoga');
   await A.engine.syncNow();

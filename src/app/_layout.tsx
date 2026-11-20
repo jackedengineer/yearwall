@@ -4,6 +4,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
+import { ToastHost } from '@/components/toast';
+import { TourHost } from '@/components/tour';
 import { openDb } from '@/data/db';
 import { UI } from '@/data/state';
 import { initStore } from '@/data/store';
@@ -70,8 +72,9 @@ export default function RootLayout() {
         <Stack.Screen name="settings" options={modal} />
         <Stack.Screen name="target" options={modal} />
         <Stack.Screen name="share" options={modal} />
-        <Stack.Screen name="intro" options={{ ...modal, gestureEnabled: false }} />
       </Stack>
+      <ToastHost />
+      <TourHost />
     </>
   );
 }

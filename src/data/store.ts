@@ -49,17 +49,20 @@ function assign(st: State) {
   S.journal = st.journal;
 }
 
-/** Opens the database, creates tables, and loads everything into memory. First run writes the Chapter 1 plan. */
-export function initStore(db: repo.Db) {
-  P = repo;
+/**
+ * Opens the database, creates tables, and loads everything into memory. First run writes the Chapter 1 plan.
+ * `persist` is only swapped by the tests, to act like an older phone.
+ */
+export function initStore(db: repo.Db, persist: Persist = repo) {
+  P = persist;
   repo.setDb(db);
   repo.migrate();
-  const st = repo.loadAll();
+  const st = P.loadAll();
   if (st) assign(st);
   else {
     const t = buildTemplate();
-    repo.replaceAll(t);
-    assign(repo.loadAll() ?? t);
+    P.replaceAll(t);
+    assign(P.loadAll() ?? t);
   }
   commit();
 }
@@ -145,7 +148,7 @@ export function applyRemote(recs: Rec[]) {
         case 'goal': {
           const g = d ?? { text: '', done: false };
           S.meta.goals = { ...S.meta.goals, [i]: g };
-          P.saveGoal(Number(i.slice(1)), g.text || '', !!g.done);
+          P.saveGoal(Number(i.slice(1)), g.text || '', !!g.done, g.items);
           break;
         }
         case 'post':
@@ -318,7 +321,7 @@ export const actions = {
     const key = `q${q}` as GoalKey;
     const g = goalFromItems(items);
     S.meta.goals = { ...S.meta.goals, [key]: g };
-    P.saveGoal(q, g.text, g.done);
+    P.saveGoal(q, g.text, g.done, g.items);
     touch('goal', key);
     commit();
   },
@@ -326,7 +329,7 @@ export const actions = {
     const key = `q${q}` as GoalKey;
     const g = { ...S.meta.goals[key], ...patch };
     S.meta.goals = { ...S.meta.goals, [key]: g };
-    P.saveGoal(q, g.text, g.done);
+    P.saveGoal(q, g.text, g.done, g.items);
     touch('goal', key);
     if (!silent) commit();
   },

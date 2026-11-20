@@ -10,6 +10,7 @@ import { S } from '@/data/state';
 import { actions } from '@/data/store';
 import { connect, connectedTo, DEFAULT_SERVER, disconnect, syncNow, useSyncStatus } from '@/data/sync-app';
 import { useStore } from '@/hooks/use-store';
+import { startTour } from '@/components/tour';
 import { C } from '@/theme';
 import { fmt, todayS } from '@/utils/dates';
 import { targetOn } from '@/utils/logic';
@@ -213,7 +214,14 @@ export default function SettingsSheet() {
         <Btn label="Export backup" kind="ghost" icon="upload" style={{ flex: 1 }} onPress={exportBackup} />
         <Btn label="Import backup" kind="ghost" icon="download" style={{ flex: 1 }} onPress={importBackup} />
       </View>
-      <Btn label="Replay the intro" kind="ghost" onPress={() => router.push('/intro')} />
+      <Btn
+        label="Replay the tour"
+        kind="ghost"
+        onPress={() => {
+          router.back();
+          setTimeout(startTour, 300);
+        }}
+      />
     </ModalScreen>
   );
 }

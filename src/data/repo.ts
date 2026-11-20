@@ -6,7 +6,7 @@
  * Db is a tiny adapter so the same code runs on expo-sqlite (app) and
  * node:sqlite (tests in scripts/).
  */
-import type { Chapter, GoalKey, Habit, Income, JournalEntry, Meta, Plan, Post, Settings, State, WeekInfo } from './types';
+import type { Chapter, GoalItem, GoalKey, Habit, HabitColor, Income, JournalEntry, Meta, Plan, Post, Settings, State, WeekInfo } from './types';
 
 export type Row = Record<string, any>;
 export interface Db {
@@ -63,7 +63,11 @@ export function migrate() {
     db.tx(() => db.exec(SCHEMA_V2));
     db.exec('PRAGMA user_version = 2');
   }
-  // Future schema changes: add `if (v < 3) { ... PRAGMA user_version = 3 }` here.
+  if (v < 3) {
+    db.tx(() => db.exec(SCHEMA_V3));
+    db.exec('PRAGMA user_version = 3');
+  }
+  // Future schema changes: add `if (v < 4) { ... PRAGMA user_version = 4 }` here.
 }
 
 /** v2: sync bookkeeping. Which records changed when, which still need sending, and sync settings. */
@@ -71,6 +75,24 @@ const SCHEMA_V2 = `
 CREATE TABLE IF NOT EXISTS sync_records (kind TEXT NOT NULL, id TEXT NOT NULL, updated_at INTEGER NOT NULL, dirty INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (kind, id));
 CREATE TABLE IF NOT EXISTS sync_meta (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
 `;
+
+/** v3 (UX v2): each habit's colour, a plan's "did it happen" answer, and the quarter-goal checklist (JSON). */
+const SCHEMA_V3 = `
+ALTER TABLE habits ADD COLUMN color TEXT;
+ALTER TABLE plans ADD COLUMN outcome TEXT;
+ALTER TABLE goals ADD COLUMN items TEXT;
+`;
+
+const COLORS: HabitColor[] = ['green', 'violet', 'blue', 'amber', 'pink', 'teal'];
+const parseItems = (json: string | null | undefined): GoalItem[] | undefined => {
+  if (!json) return undefined;
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? v.filter((i) => i && typeof i.id === 'string' && typeof i.text === 'string').map((i) => ({ id: i.id, text: i.text, done: !!i.done })) : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 /* ---------- sync bookkeeping (local only, never synced) ---------- */
 
@@ -124,6 +146,7 @@ export function loadAll(): State | null {
     activeTo: h.active_to ?? null,
     targets: targets.filter((t) => t.habit_id === h.id).map((t) => ({ from: t.from_date, value: t.value })),
     pauses: pauses.filter((p) => p.habit_id === h.id).map((p) => ({ from: p.from_date, to: p.to_date })),
+    ...(COLORS.includes(h.color) ? { color: h.color as HabitColor } : {}),
   }));
 
   const plans: Plan[] = db.all('SELECT * FROM plans ORDER BY start_date, rowid').map((p) => ({
@@ -133,6 +156,7 @@ export function loadAll(): State | null {
     end: p.end_date,
     cat: p.cat,
     milestone: !!p.milestone,
+    ...(p.outcome === 'done' || p.outcome === 'missed' ? { outcome: p.outcome as 'done' | 'missed' } : {}),
   }));
 
   const weeks: Meta['weeks'] = {};
@@ -147,7 +171,8 @@ export function loadAll(): State | null {
     q4: { text: '', done: false },
   };
   db.all('SELECT * FROM goals').forEach((g) => {
-    goals[`q${g.quarter}` as GoalKey] = { text: g.text, done: !!g.done };
+    const items = parseItems(g.items);
+    goals[`q${g.quarter}` as GoalKey] = { text: g.text, done: !!g.done, ...(items ? { items } : {}) };
   });
 
   const posts: Post[] = db.all('SELECT * FROM posts ORDER BY date, rowid').map((p) => ({
@@ -221,7 +246,7 @@ export function deleteChapter(id: string) {
 
 export function saveHabit(h: Habit, sort: number) {
   tx(() => {
-    db.run('INSERT OR REPLACE INTO habits (id, sort, name, type, auto, step, days_per_week, active_from, active_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+    db.run('INSERT OR REPLACE INTO habits (id, sort, name, type, auto, step, days_per_week, active_from, active_to, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
       h.id,
       sort,
       h.name,
@@ -231,6 +256,7 @@ export function saveHabit(h: Habit, sort: number) {
       h.daysPerWeek || 7,
       h.activeFrom,
       h.activeTo ?? null,
+      h.color ?? null,
     ]);
     db.run('DELETE FROM habit_targets WHERE habit_id = ?', [h.id]);
     const seen = new Set<string>();
@@ -255,18 +281,19 @@ export function deleteHabit(id: string) {
 
 export const savePlan = (p: Plan) =>
   db.run(
-    `INSERT INTO plans (id, title, start_date, end_date, cat, milestone) VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO plans (id, title, start_date, end_date, cat, milestone, outcome) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET title = excluded.title, start_date = excluded.start_date, end_date = excluded.end_date,
-     cat = excluded.cat, milestone = excluded.milestone`,
-    [p.id, p.title, p.start, p.end, p.cat, p.milestone ? 1 : 0],
+     cat = excluded.cat, milestone = excluded.milestone, outcome = excluded.outcome`,
+    [p.id, p.title, p.start, p.end, p.cat, p.milestone ? 1 : 0, p.outcome ?? null],
   );
 export const deletePlan = (id: string) => db.run('DELETE FROM plans WHERE id = ?', [id]);
 
 export const saveWeek = (w: number, info: WeekInfo) =>
   db.run('INSERT OR REPLACE INTO weeks (week, focus, notes) VALUES (?, ?, ?)', [w, info.focus || '', info.notes || '']);
 
-export const saveGoal = (q: number, text: string, done: boolean) =>
-  db.run('INSERT OR REPLACE INTO goals (quarter, text, done) VALUES (?, ?, ?)', [q, text, done ? 1 : 0]);
+/** `items` is the checklist (schema v3); `text`/`done` mirror it for older clients. */
+export const saveGoal = (q: number, text: string, done: boolean, items?: GoalItem[]) =>
+  db.run('INSERT OR REPLACE INTO goals (quarter, text, done, items) VALUES (?, ?, ?, ?)', [q, text, done ? 1 : 0, items ? JSON.stringify(items) : null]);
 
 // Upsert (not REPLACE) keeps the row's rowid, so posts keep their order within a day.
 export const savePost = (p: Post) =>
@@ -318,7 +345,7 @@ export function replaceAll(s: State) {
     Object.entries(s.meta.weeks || {}).forEach(([w, info]) => saveWeek(Number(w), info));
     (['q1', 'q2', 'q3', 'q4'] as GoalKey[]).forEach((q, i) => {
       const g = s.meta.goals?.[q];
-      if (g && (g.text || g.done)) saveGoal(i + 1, g.text || '', !!g.done);
+      if (g && (g.text || g.done || g.items?.length)) saveGoal(i + 1, g.text || '', !!g.done, g.items);
     });
     s.posts.forEach(savePost);
     s.income.forEach(saveIncome);

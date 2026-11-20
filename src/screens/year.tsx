@@ -1,30 +1,50 @@
+import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Bar, Card, Chip, Chips, Field, Screen, Section, T } from '@/components/ui';
+import { GoalCard } from '@/components/goals';
+import { startTour, TourTarget } from '@/components/tour';
+import { Chip, Screen, Section, T } from '@/components/ui';
 import { CATS } from '@/constants';
 import { commit, S, UI } from '@/data/state';
-import { actions } from '@/data/store';
+import type { Habit } from '@/data/types';
 import { useStore } from '@/hooks/use-store';
 import { C } from '@/theme';
-import { addD, clampWeek, diff, dowI, ds, fmt, fmtRange, MONTHS, pd, plural, todayS, weekDays, weekOf, weekStart, WEEKS, YEAR_END, YEAR_START } from '@/utils/dates';
-import { barColor, capOn, chapterLabelForMonth, isPerfect, monthsOfYear, yearStats } from '@/utils/logic';
+import { clampWeek, dowI, ds, fmt, fmtRange, MONTHS, pd, plural, todayS, weekDays, weekOf, YEAR_END, YEAR_START } from '@/utils/dates';
+import { barColor, capOn, chapterLabelForMonth, dayScore, isPerfect, monthsOfYear, yearStats } from '@/utils/logic';
+import { habitColor, perfectWeeks, plansInWeek, spotlightBar, weekProgress, yearProgress } from '@/utils/progress';
 
-const WeekCard = memo(function WeekCard({ w, now, perfect, bars }: { w: number; now: boolean; perfect: boolean; bars: { color: string; cap: string | null; today: boolean }[] }) {
+const spotlightHabit = (): Habit | null => (UI.spotlight ? (S.meta.habits.find((h) => h.id === UI.spotlight) ?? null) : null);
+const setSpotlight = (id: string) => {
+  UI.spotlight = id;
+  commit();
+};
+const openWeek = (w: number) => router.push({ pathname: '/week/[w]', params: { w: String(w) } });
+
+const WeekCard = memo(function WeekCard({ w, now, perfect, bars, spot, spotName }: { w: number; now: boolean; perfect: boolean; bars: { color: string; cap: string | null; today: boolean }[]; spot?: string; spotName?: string }) {
   const days = weekDays(w);
   const focus = S.meta.weeks[String(w)]?.focus;
+  const nPlans = plansInWeek(w).length;
+  // Text for what the bars show: days with every habit done (or the spotlighted habit's count).
+  const t = todayS();
+  const full = days.filter((d) => d <= t && dayScore(d) === 1).length;
+  const barsText = spot ? `${spotName} ${spot.replace('/', ' of ')} days` : days[0] <= t ? `${plural(full, 'day')} with every habit done` : '';
   return (
     <Pressable
-      onPress={() => router.push({ pathname: '/week/[w]', params: { w: String(w) } })}
+      onPress={() => openWeek(w)}
       accessibilityRole="button"
-      accessibilityLabel={`Week ${w}, ${fmtRange(days[0], days[6])}${focus ? `, ${focus}` : ''}${perfect ? ', perfect week' : ''}`}
+      accessibilityLabel={`W${w}${spot ? ` ${spot}` : now ? ' Now' : ''}, open week ${w}, ${fmtRange(days[0], days[6])}, ${plural(nPlans, 'plan')}${focus ? `, ${focus}` : ''}${perfect ? ', perfect week' : ''}${barsText ? `, ${barsText}` : ''}`}
       style={({ pressed }) => [s.wk, now && s.wkNow, perfect && (now ? s.wkNowPerfect : s.wkPerfect), pressed && { opacity: 0.7 }]}
     >
       <View style={s.wl}>
         <T w={600} s={10} c={C.mut2}>
           W{w}
         </T>
-        {now ? (
+        {spot ? (
+          <T w={700} s={10} c={C.tx2}>
+            {spot}
+          </T>
+        ) : now ? (
           <View style={s.nowb}>
             <T w={700} s={8} c={C.bg} style={{ lineHeight: 10 }}>
               Now
@@ -35,7 +55,7 @@ const WeekCard = memo(function WeekCard({ w, now, perfect, bars }: { w: number; 
       <View style={s.bars}>
         {bars.map((b, i) => (
           <View key={i} style={[s.bar, { backgroundColor: b.color }, b.today && s.barToday]}>
-            {b.cap ? <View style={[s.cap, { backgroundColor: b.cap }]} /> : null}
+            {b.cap ? <View style={[s.cap, { backgroundColor: b.cap }, spot !== undefined && { opacity: 0.3 }]} /> : null}
           </View>
         ))}
       </View>
@@ -43,7 +63,7 @@ const WeekCard = memo(function WeekCard({ w, now, perfect, bars }: { w: number; 
   );
 });
 
-function WeeksBoard() {
+function WeeksBoard({ spot }: { spot: Habit | null }) {
   const t = todayS();
   const cw = weekOf(t);
   return (
@@ -62,10 +82,19 @@ function WeeksBoard() {
             {[0, 1, 2, 3, 4].map((i) => {
               const w = mo.weeks[i];
               if (!w) return <View key={i} style={{ flex: 1 }} />;
-              const bars = weekDays(w).map((d) => ({ color: barColor(d, t), cap: capOn(d), today: d === t }));
+              const bars = weekDays(w).map((d) => ({ color: spot ? spotlightBar(spot, d, t) : barColor(d, t), cap: capOn(d), today: d === t }));
+              // In the spotlight, each week that has started says how many days the habit hit.
+              const p = spot && w <= cw ? weekProgress(spot, t, w) : null;
+              const label = spot ? (p && p.target ? `${p.done}/${p.target}` : '') : undefined;
               return (
                 <View key={i} style={{ flex: 1 }}>
-                  <WeekCard w={w} now={w === cw} perfect={w <= cw && isPerfect(w, t)} bars={bars} />
+                  {w === cw ? (
+                    <TourTarget id="week">
+                      <WeekCard w={w} now perfect={!spot && isPerfect(w, t)} bars={bars} spot={label} spotName={spot?.name} />
+                    </TourTarget>
+                  ) : (
+                    <WeekCard w={w} now={false} perfect={!spot && w <= cw && isPerfect(w, t)} bars={bars} spot={label} spotName={spot?.name} />
+                  )}
                 </View>
               );
             })}
@@ -76,7 +105,7 @@ function WeeksBoard() {
   );
 }
 
-function DaysBoard() {
+function DaysBoard({ spot }: { spot: Habit | null }) {
   const t = todayS();
   const months: [number, number][] = [];
   let y = pd(YEAR_START).getFullYear();
@@ -119,8 +148,9 @@ function DaysBoard() {
                         commit();
                         router.navigate('/');
                       }}
-                      accessibilityLabel={fmt(d, { wd: true })}
-                      style={[s.cd, { backgroundColor: d < YEAR_START || d > YEAR_END ? '#100F0E' : barColor(d, t) }, d === t && s.cdToday]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Log ${fmt(d, { wd: true })}`}
+                      style={[s.cd, { backgroundColor: d < YEAR_START || d > YEAR_END ? '#100F0E' : spot ? spotlightBar(spot, d, t) : barColor(d, t) }, d === t && s.cdToday]}
                     >
                       {capOn(d) && d >= YEAR_START && d <= YEAR_END ? <View style={[s.cap, { height: 3, backgroundColor: capOn(d)! }]} /> : null}
                     </Pressable>
@@ -137,82 +167,58 @@ function DaysBoard() {
   );
 }
 
-function GoalCard({ q, now }: { q: 1 | 2 | 3 | 4; now: boolean }) {
-  const g = S.meta.goals[`q${q}`];
-  const [text, setText] = useState(g.text);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
-  const ws = (q - 1) * 13 + 1;
-  const we = q * 13;
-  return (
-    <Card style={[{ padding: 14, gap: 8 }, now && { borderColor: '#55504B' }]}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <T w={700} s={13}>
-          Q{q} goals{' '}
-          <T s={11} c={C.mut}>
-            {fmt(weekStart(ws))} – {fmt(addD(weekStart(we), 6))}
-          </T>
-        </T>
-        <Chip label={g.done ? 'Done' : now ? 'Now' : 'Mark done'} on={g.done} onPress={() => actions.saveGoal(q, { done: !g.done, text })} />
-      </View>
-      <Field
-        value={text}
-        onChangeText={(v) => {
-          setText(v);
-          if (timer.current) clearTimeout(timer.current);
-          timer.current = setTimeout(() => actions.saveGoal(q, { text: v }, true), 500);
-        }}
-        onBlur={() => actions.saveGoal(q, { text }, true)}
-        placeholder="What would make this quarter count?"
-        multiline
-        style={{ minHeight: 56, fontSize: 14 }}
-      />
-    </Card>
-  );
-}
-
 export function Year() {
   useStore();
   const t = todayS();
   const cw = clampWeek(weekOf(t));
-  const dayIdx = Math.max(0, Math.min(WEEKS * 7, diff(YEAR_START, t) + 1));
-  const left = WEEKS * 7 - dayIdx;
-  const pct = Math.round((dayIdx / (WEEKS * 7)) * 100);
+  const yp = yearProgress(t);
   const st = yearStats(t);
-  const q = Math.min(4, Math.floor((cw - 1) / 13) + 1);
+  const pw = perfectWeeks(t);
+  const spot = spotlightHabit();
 
   return (
     <Screen>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-        <T w={700} s={24} style={{ flexShrink: 1, lineHeight: 30 }}>
+        <T w={700} s={24} accessibilityRole="header" style={{ flexShrink: 1, lineHeight: 30 }}>
           Year Wall
         </T>
-        <Chip label="Share" onPress={() => router.push({ pathname: '/share', params: { kind: 'year' } })} />
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <Chip label="How it works" onPress={startTour} />
+          <TourTarget id="share">
+            <Chip label="Share" onPress={() => router.push({ pathname: '/share', params: { kind: 'year' } })} />
+          </TourTarget>
+        </View>
       </View>
 
-      <View style={{ gap: 8 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+      <View style={{ gap: 8 }} accessible accessibilityRole="progressbar" accessibilityLabel="Year progress" accessibilityValue={{ min: 0, max: 100, now: yp.pct, text: `${yp.started ? `Week ${yp.week} of ${yp.weeks}` : 'Not started'}, ${plural(yp.daysLeft, 'day')} left, ${yp.pct}% gone` }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
           <T w={600} s={12}>
-            Week {cw} of {WEEKS}
+            {yp.started ? `Week ${yp.week} of ${yp.weeks}` : `The year starts ${fmt(YEAR_START, { wd: true })}`}
           </T>
           <T w={600} s={12} c={C.mut}>
-            {plural(left, 'day')} left, {pct}% gone
+            {plural(yp.daysLeft, 'day')} left · {yp.pct}% gone
           </T>
         </View>
-        <Bar pct={Math.max(1, pct)} h={5} />
+        <View style={{ height: 6, borderRadius: 3, backgroundColor: C.off, overflow: 'hidden' }}>
+          <View style={{ width: `${Math.max(1, yp.pct)}%` as `${number}%`, height: '100%', borderRadius: 3, backgroundColor: C.lit }} />
+        </View>
       </View>
 
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <View style={[s.stat, { backgroundColor: C.okBg, borderColor: C.okLine }]}>
-          <T w={700} s={20} c={C.ok}>
-            {st.perfect}
+        <TourTarget id="perfect" style={[s.stat, { backgroundColor: C.okBg, borderColor: C.okLine, flex: 1.7 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+            <T w={700} s={20} c={C.ok}>
+              {pw.count}
+            </T>
+            <T s={11} w={600} c="#8CC7A4" style={{ flexShrink: 1 }}>
+              {pw.count === 1 ? 'perfect week' : 'perfect weeks'}
+              {pw.bestRun > 0 ? `, best run ${plural(pw.bestRun, 'week')}` : ''}
+            </T>
+          </View>
+          <T s={11} c="#7FB596" style={{ marginTop: 2 }}>
+            A week where every habit hits its target.
           </T>
-          <T s={11} c="#8CC7A4">
-            perfect weeks
-          </T>
-        </View>
+        </TourTarget>
         <View style={s.stat}>
           <T w={700} s={20}>
             {st.best}
@@ -231,7 +237,7 @@ export function Year() {
         </View>
       </View>
 
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
         <View style={s.seg}>
           {(['weeks', 'days'] as const).map((v) => (
             <Pressable
@@ -250,33 +256,63 @@ export function Year() {
             </Pressable>
           ))}
         </View>
-        <T s={12} c={C.mut}>
-          {UI.yearView === 'weeks' ? 'Tap a week to open it' : 'Tap a day to log it'}
+        <Chip label="This week" onPress={() => openWeek(cw)} />
+      </View>
+      <T s={12} c={C.mut} style={{ marginTop: -8 }}>
+        {UI.yearView === 'weeks' ? 'Tap a week to open it and plan its days.' : 'Tap a day to log it.'}
+      </T>
+
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }} accessibilityLabel="Show plan categories on the board">
+        <T w={600} s={12} c={C.mut} style={{ marginRight: 2 }}>
+          Show
         </T>
+        {CATS.map((c) => {
+          const shown = !UI.hideCats.has(c.id);
+          return (
+            <Pressable
+              key={c.id}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: shown }}
+              accessibilityLabel={c.name}
+              onPress={() => {
+                if (shown) UI.hideCats.add(c.id);
+                else UI.hideCats.delete(c.id);
+                commit();
+              }}
+              style={({ pressed }) => [s.cat, !shown && { opacity: 0.55 }, pressed && { opacity: 0.6 }]}
+            >
+              <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: shown ? c.color : C.mut2 }} />
+              <T s={12} w={500} c={shown ? '#D6D1CB' : C.mut} style={!shown && { textDecorationLine: 'line-through' }}>
+                {c.name}
+              </T>
+            </Pressable>
+          );
+        })}
       </View>
 
-      <Chips>
-        {CATS.map((c) => (
-          <Chip
-            key={c.id}
-            label={c.name}
-            dot={c.color}
-            dim={UI.hideCats.has(c.id)}
-            onPress={() => {
-              if (UI.hideCats.has(c.id)) UI.hideCats.delete(c.id);
-              else UI.hideCats.add(c.id);
-              commit();
-            }}
-          />
+      {spot ? (
+        <View style={[s.spotbar, { borderColor: habitColor(spot).line, backgroundColor: habitColor(spot).tint }]} accessibilityLiveRegion="polite">
+          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: habitColor(spot).fill }} />
+          <T s={12} c={C.tx2} style={{ flex: 1 }}>
+            <T w={700} s={12}>
+              {spot.name}
+            </T>{' '}
+            only: filled days are done, and each week shows how many days it hit. Plans are dimmed. Tap × to see every habit.
+          </T>
+          <Pressable accessibilityRole="button" accessibilityLabel="Show every habit" hitSlop={6} onPress={() => setSpotlight('')} style={s.spotx}>
+            <Feather name="x" size={16} color={C.tx2} />
+          </Pressable>
+        </View>
+      ) : null}
+
+      <TourTarget id="board">{UI.yearView === 'weeks' ? <WeeksBoard spot={spot} /> : <DaysBoard spot={spot} />}</TourTarget>
+
+      <Section left="Quarter goals" right="Up to 5 a quarter" />
+      <TourTarget id="goals" style={{ gap: 12 }}>
+        {([1, 2, 3, 4] as const).map((qq) => (
+          <GoalCard key={qq} q={qq} />
         ))}
-      </Chips>
-
-      {UI.yearView === 'weeks' ? <WeeksBoard /> : <DaysBoard />}
-
-      <Section left="Quarter goals" right="Chapter year quarters" />
-      {([1, 2, 3, 4] as const).map((qq) => (
-        <GoalCard key={qq} q={qq} now={qq === q} />
-      ))}
+      </TourTarget>
     </Screen>
   );
 }
@@ -300,4 +336,7 @@ const s = StyleSheet.create({
   cap: { position: 'absolute', left: 0, right: 0, top: 0, height: 6 },
   cd: { aspectRatio: 1, borderRadius: 4, overflow: 'hidden' },
   cdToday: { borderWidth: 1.5, borderColor: C.lit },
+  cat: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, minHeight: 36, borderRadius: 999, backgroundColor: C.s3, borderWidth: 1, borderColor: '#2E2B28' },
+  spotbar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 12, paddingRight: 4, paddingVertical: 6, borderRadius: 12, borderWidth: 1 },
+  spotx: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
 });

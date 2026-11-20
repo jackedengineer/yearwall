@@ -9,7 +9,7 @@ Personal productivity app (Expo SDK 58, Expo Router, TypeScript, expo-sqlite). O
 - `web/`: separate npm project (Vite + React, deployed with the `cf` CLI). `web/worker/` is the API (`POST /api/sync`, bearer `SYNC_KEY` secret, D1 table `records`); `web/src` imports shared code through the `@core` alias (= `../src`). Screens there are ports of the phone screens using `web/src/lib/rn.tsx` (flex-column divs), not React Native.
 - `src/data/repo.ts`: schema plus migrations (`PRAGMA user_version`). To change the schema, add an `if (v < N)` block and never edit `SCHEMA_V1`. It talks to a tiny `Db` adapter, so the same code runs on expo-sqlite (`src/data/db.ts`) and on node:sqlite in tests.
 - `src/utils/logic.ts`: pure habit logic (targets that step up by date, pauses, streaks, perfect weeks, board colors). `src/utils/progress.ts`: what the UI shows on top of it (weekly progress, the 7-day strip, habit colours, toast copy, perfect-week runs, year progress, plan outcomes, quarter-goal checklists). Keep both free of React and React Native imports so `npm test` and the web app can run them.
-- Additive record fields (older clients must keep working): `Habit.color`, `Plan.outcome`, `Goal.items` (with `text`/`done` mirrored for older clients; `goalItems()` rebuilds the checklist when an older client edited `text`). The phone doesn't store them yet (it keeps schema v2 until the phone port adds v3); the server keeps them when the phone re-saves a record.
+- Additive record fields (older clients must keep working): `Habit.color`, `Plan.outcome`, `Goal.items` (with `text`/`done` mirrored for older clients; `goalItems()` rebuilds the checklist when an older client edited `text`). The phone stores them in SQLite from schema v3 (`habits.color`, `plans.outcome`, `goals.items` as JSON). Phones on an older release drop them locally, and the server keeps them when such a phone re-saves a record.
 - Dates are local `YYYY-MM-DD` strings, and weeks run Monday to Sunday. Week 1 starts 2026-11-16 (`YEAR_START` in `src/utils/dates.ts`).
 
 ## Conventions
@@ -20,5 +20,5 @@ Personal productivity app (Expo SDK 58, Expo Router, TypeScript, expo-sqlite). O
 - Keep `src/data`, `src/utils`, `src/constants.ts` and `src/theme.ts` free of React Native imports: the web app and the tests use them.
 
 ## Not verified on a device yet
-The app now runs on the owner's Android phone (EAS APK). Not yet checked on a device: sync from the phone (Settings → Sync), and these older items:
+The app now runs on the owner's Android phone (EAS APK). Not yet checked on a device: the UX v2 phone screens (habit cards with the ring pop and haptics, the toast above the tab bar, the ··· action sheet, the week sheet's grid and quick add, the coach-mark tour's cut-out and scrolling, the share cards at 1080 × 1350, and the schema v3 upgrade of an existing database), sync from the phone (Settings → Sync), and these older items:
 `expo-file-system` `File`/`Paths` API (export/import in `src/app/settings.tsx`), `react-native-view-shot` capture size options (`src/app/share.tsx`), and the tab bar styling (`sceneStyle`, `tabBarStyle`).
