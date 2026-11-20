@@ -1,106 +1,20 @@
-import Feather from '@expo/vector-icons/Feather';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
-import { Banner, Bar, Card, Chip, Empty, Field, IconBtn, Screen, Section, Sep, T } from '@/components/ui';
+import { Pressable, type TextInputInstance, View } from 'react-native';
+import { onJournalFocus } from '@/components/habit-actions';
+import { HabitCards } from '@/components/habit-card';
+import { PlansToAnswer } from '@/components/plan-outcome';
+import { Banner, Card, Chip, Empty, Field, IconBtn, Screen, Section, Sep, T } from '@/components/ui';
 import { CAT, STATUS_COLOR } from '@/constants';
 import { commit, S, UI } from '@/data/state';
 import { actions } from '@/data/store';
-import type { Habit } from '@/data/types';
 import { useStore } from '@/hooks/use-store';
 import { C } from '@/theme';
 import { addD, diff, fmt, fmtRange, plural, todayS, weekOf, clampWeek, WEEKS, YEAR_START } from '@/utils/dates';
-import { chapterAt, doneOn, habits, isActive, journalOn, nextChapter, nextMilestone, phaseAt, plansOn, streak, targetOn, valueOn } from '@/utils/logic';
+import { chapterAt, doneOn, habits, isActive, journalOn, nextChapter, nextMilestone, phaseAt, plansOn } from '@/utils/logic';
 
 const tap = () => Haptics.selectionAsync().catch(() => {});
-
-function HabitRow({ h, d }: { h: Habit; d: string }) {
-  const t = todayS();
-  const future = d > t;
-  const val = valueOn(h, d);
-  const tgt = targetOn(h, d);
-  const done = val >= tgt;
-  const st = streak(h, d <= t ? d : t);
-  const stTxt = st.n > 0 ? `${plural(st.n, st.unit)} streak` : 'Start a streak';
-
-  if (h.type === 'minutes') {
-    const step = h.step || 5;
-    return (
-      <View style={row.habit}>
-        <View style={row.main}>
-          <T w={600} s={15}>
-            {h.name}
-          </T>
-          <Bar pct={(val / tgt) * 100} />
-          <View style={row.meta}>
-            <Pressable onPress={() => router.push({ pathname: '/minutes/[hid]', params: { hid: h.id, d } })} disabled={future} accessibilityRole="button" accessibilityLabel={`Set ${h.name} minutes`}>
-              <T s={12} c={C.mut} style={{ textDecorationLine: 'underline', textDecorationStyle: 'dotted' }}>
-                {val} of {tgt} min
-              </T>
-            </Pressable>
-            <T s={12} c={C.mut}>
-              {done ? 'Done. ' : ''}
-              {stTxt}
-            </T>
-          </View>
-        </View>
-        <Pressable
-          style={({ pressed }) => [row.step, row.minus, (future || val <= 0) && { opacity: 0.35 }, pressed && { opacity: 0.6 }]}
-          disabled={future || val <= 0}
-          onPress={() => {
-            tap();
-            actions.setValue(h, d, Math.max(0, val - step));
-          }}
-          accessibilityLabel={`Remove ${step} minutes`}
-        >
-          <T w={600} c={C.mut}>
-            −
-          </T>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [row.step, future && { opacity: 0.35 }, pressed && { opacity: 0.6 }]}
-          disabled={future}
-          onPress={() => {
-            tap();
-            if (val < tgt && val + step >= tgt) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            actions.setValue(h, d, val + step);
-          }}
-          accessibilityLabel={`Add ${step} minutes of ${h.name}`}
-        >
-          <T w={600}>+{step}</T>
-        </Pressable>
-      </View>
-    );
-  }
-
-  const auto = h.auto === 'journal';
-  return (
-    <View style={row.habit}>
-      <View style={row.main}>
-        <T w={600} s={15}>
-          {h.name}
-        </T>
-        <T s={12} c={C.mut}>
-          {auto ? (done ? `Saved. ${stTxt}` : "Ticks itself when you write tonight's log") : `${done ? 'Done' : 'Not done yet'}   ${stTxt}`}
-        </T>
-      </View>
-      <Pressable
-        disabled={future || auto}
-        onPress={() => {
-          tap();
-          actions.setValue(h, d, done ? 0 : 1);
-        }}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: done, disabled: future || auto }}
-        accessibilityLabel={h.name}
-        style={[row.check, done && row.checkOn]}
-      >
-        {done ? <Feather name="check" size={20} color={C.bg} /> : null}
-      </Pressable>
-    </View>
-  );
-}
 
 function ChapterCard({ d }: { d: string }) {
   const c = chapterAt(d);
@@ -138,7 +52,7 @@ function ChapterCard({ d }: { d: string }) {
   const w = clampWeek(weekOf(d));
   const focus = S.meta.weeks[String(w)]?.focus;
   return (
-    <Card style={{ padding: 16, gap: 12 }} onPress={() => router.navigate('/chapter')} label={`Chapter ${c.n}, ${c.name}`}>
+    <Card style={{ padding: 16, gap: 12 }} onPress={() => router.navigate('/chapter')}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <View>
           <T w={600} s={12} c={C.mut}>
@@ -178,6 +92,9 @@ function Journal({ d }: { d: string }) {
   const [feyn, setFeyn] = useState(j.feynman || '');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<{ text?: string; feynman?: string }>({});
+  const input = useRef<TextInputInstance>(null);
+  // The Nightly log ring opens this field.
+  useEffect(() => onJournalFocus((day) => day === d && input.current?.focus()), [d]);
 
   const flush = () => {
     if (timer.current) clearTimeout(timer.current);
@@ -205,6 +122,7 @@ function Journal({ d }: { d: string }) {
   return (
     <Card style={{ padding: 14, gap: 12 }}>
       <Field
+        ref={input}
         label="What happened, what surprised you, how you feel"
         value={text}
         onChangeText={(v) => {
@@ -302,14 +220,7 @@ export function Today() {
 
       <Section left={d === t ? 'Habits today' : 'Habits this day'} right={act.length ? `${doneN} of ${act.length} done` : undefined} />
       {act.length ? (
-        <Card>
-          {act.map((h, i) => (
-            <View key={h.id}>
-              {i > 0 ? <Sep /> : null}
-              <HabitRow h={h} d={d} />
-            </View>
-          ))}
-        </Card>
+        <HabitCards d={d} />
       ) : (
         <Empty>
           {d < day0
@@ -319,6 +230,8 @@ export function Today() {
               : 'No habits are active today. Add one in settings.'}
         </Empty>
       )}
+
+      {d === t ? <PlansToAnswer /> : null}
 
       <Section left="Plans and posts" right={plans.length + posts.length ? String(plans.length + posts.length) : undefined} />
       {plans.length + posts.length ? (

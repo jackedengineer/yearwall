@@ -1,18 +1,20 @@
 import Feather from '@expo/vector-icons/Feather';
-import { router, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { useEffect } from 'react';
 import { AppState, type ColorValue } from 'react-native';
 import { commit, S, UI } from '@/data/state';
 import { todayS } from '@/utils/dates';
 import { C, font } from '@/theme';
+import { startTour } from '@/components/tour';
 import type { IconName } from '@/components/ui';
 
 const icon = (name: IconName) => ({ color }: { color: ColorValue }) => <Feather name={name} size={22} color={color as string} />;
 
 export default function TabsLayout() {
+  // The tour starts once on its own (people who only saw the old intro get it once too).
   useEffect(() => {
-    if (!S.meta.settings.tourDone) {
-      const t = setTimeout(() => router.push('/intro'), 400);
+    if ((S.meta.settings.tourSeen ?? 0) < 2) {
+      const t = setTimeout(startTour, 700);
       return () => clearTimeout(t);
     }
   }, []);

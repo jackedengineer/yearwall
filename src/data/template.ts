@@ -1,109 +1,152 @@
-import type { Chapter, Meta, Post, State, Test } from './types';
+import type { Meta, State } from './types';
 
-/** The plan Year Wall starts with: Chapter 1 (Stillness) in detail, the rest as editable placeholders. */
+/**
+ * The plan Year Wall starts with: Chapter 1, First Principles (Nov 20 to Dec 31, 2026), in detail,
+ * and Chapters 2 to 9 as editable placeholders. Same ids as the live data, so a fresh install that
+ * connects to sync lines up record for record instead of adding duplicates.
+ */
 export function buildTemplate(): State {
-  let n = 0;
-  const id = (p: string) => p + String(++n).padStart(3, '0');
-
-  const posts: Post[] = [];
-  const P = (date: string, title: string, bucket: string, format = 'Short', platform = 'Reels + Shorts') =>
-    posts.push({ id: id('p'), title, bucket, format, platform, date, status: 'Planned', link: '' });
-  P('2026-11-17', "Series trailer: why I'm spending a year as a beginner", 'Story', 'Long', 'YouTube');
-  P('2026-11-17', 'Day 0: my baseline tests', 'Progress');
-  P('2026-11-18', 'Day 1: stiff body, busy mind', 'Progress');
-  P('2026-11-20', 'I wanted to quit 40 times in 15 minutes', 'Real moment');
-  P('2026-11-22', 'Week 1 recap: Day Zero', 'Story');
-  P('2026-11-23', 'Sun salutation, explained simply', 'Lesson');
-  P('2026-11-25', 'What changed in 7 days', 'Progress');
-  P('2026-11-27', 'The wandering mind', 'Real moment');
-  P('2026-11-29', 'Week 2 recap: The Struggle', 'Story');
-  P('2026-11-30', 'The breathing trick that calms you in 60 seconds', 'Lesson');
-  P('2026-12-02', 'First visible progress', 'Progress');
-  P('2026-12-04', 'My first 40-minute sit', 'Real moment');
-  P('2026-12-06', 'Week 3 recap: First Wins', 'Story');
-  P('2026-12-07', 'Why sitting still is a skill', 'Lesson');
-  P('2026-12-09', 'The full sequence from memory', 'Progress');
-  P('2026-12-11', 'What nobody tells you about meditating daily', 'Real moment');
-  P('2026-12-13', 'Mini-retreat day: 5 hours, no phone', 'Real moment');
-  P('2026-12-14', 'What 4 weeks taught me about attention', 'Lesson');
-  P('2026-12-16', 'Day 0 vs Day 30', 'Progress');
-  P('2026-12-19', 'Day 0 vs Day 33, side by side', 'Progress');
-  P('2026-12-19', 'Going silent for 10 days', 'Story');
-  P('2027-01-05', 'After the silence: 10 days of Vipassana', 'Story', 'Long', 'YouTube');
-
-  const T = (name: string, unit: string, better: Test['better'], target: number | null): Test => ({
-    id: id('t'),
-    name,
-    unit,
-    better,
-    baseline: null,
-    target,
-    latest: null,
-  });
-  const ch = (cid: string, num: number, name: string, skill: string, start: string, end: string, tests: Test[] = [], phases: Chapter['phases'] = []): Chapter => ({
-    id: cid,
-    n: num,
-    name,
-    skill,
-    start,
-    end,
-    tests,
-    phases,
-  });
-  const retreat = [{ from: '2026-12-20', to: '2026-12-31' }];
-
   const meta: Meta = {
     v: 1,
-    settings: { currency: '₹', monthlyTarget: 0, weeklyPostTarget: 4, tourDone: false, day0: '2026-11-17' },
+    settings: { currency: '₹', monthlyTarget: 0, weeklyPostTarget: 4, tourDone: false, day0: '2026-11-20' },
     chapters: [
-      ch('c1', 1, 'Stillness', 'Yoga and meditation, ending in a 10-day Vipassana retreat', '2026-11-17', '2026-12-31', [
-        T('Sit cross-legged without moving', 'min', 'higher', 60),
-        T('Single meditation sit', 'min', 'higher', 60),
-        T('Mind-wanders in a 10-min sit', 'times', 'lower', null),
-        T('Forward fold, fingertips to floor', 'cm', 'lower', 0),
-        T('Full yoga sequence from memory', 'min', 'higher', 30),
-      ], [
-        { name: 'Map', start: '2026-11-17', end: '2026-11-19', note: 'Take the baseline tests, pick one yoga program and one book, list the 12 foundation poses.' },
-        { name: 'Drill', start: '2026-11-20', end: '2026-12-03', note: 'Practice daily and film every session for feedback. Add 10 minutes on your two weakest areas. One in-person class a week.' },
-        { name: 'Retrieve', start: '2026-12-04', end: '2026-12-13', note: 'Do the full sequence from memory. Explain one thing simply each night. Mini-retreat day on Sunday, Dec 13.' },
-        { name: 'Test', start: '2026-12-14', end: '2026-12-19', note: 'Retake the Day 0 tests. Wake earlier, taper caffeine and screens, schedule posts for the retreat.' },
-        { name: 'Vipassana', start: '2026-12-20', end: '2026-12-31', note: 'Ten days of silence. No phone, no filming. Habits are paused.' },
-      ]),
-      ch('c2', 2, 'The Pitch', 'Communication, sales and marketing', '2027-01-08', '2027-02-18', [
-        T('Freelance clients landed', 'clients', 'higher', 3),
-        T('Coaching clients landed', 'clients', 'higher', 5),
-      ]),
-      ch('c3', 3, 'The Build', 'Build and sell an app', '2027-02-19', '2027-04-15', [T('Paying users', 'users', 'higher', 50)]),
-      ch('c4', 4, 'Strength', 'Calisthenics', '2027-04-16', '2027-05-27'),
-      ch('c5', 5, 'The Lens', 'Filmmaking', '2027-05-28', '2027-06-30'),
-      ch('c6', 6, 'The Stage', 'Stand-up comedy', '2027-07-01', '2027-07-31'),
-      ch('c7', 7, 'New Words', 'Thai, with memory techniques', '2027-08-01', '2027-09-10'),
-      ch('c8', 8, 'The Fight', 'Muay Thai in Chiang Mai', '2027-10-01', '2027-10-31'),
-      ch('c9', 9, 'The Deep', 'Freediving', '2027-11-01', '2027-11-14'),
+      {
+        id: 'c1',
+        n: 1,
+        name: 'First Principles',
+        skill: 'Deep dive into tech and teach it in public: system design, building AI apps, AI system design and AI infra. Build and launch an AI visibility tracker and the open-source LLM gateway under it. Underneath it all, learning how to learn.',
+        start: '2026-11-20',
+        end: '2026-12-31',
+        tests: [
+          { id: 't1a', name: 'System designs explained on camera', unit: 'designs', better: 'higher', baseline: 0, target: 8, latest: 0 },
+          { id: 't1b', name: 'Concepts taught in public', unit: 'posts', better: 'higher', baseline: 0, target: 30, latest: 0 },
+          { id: 't1c', name: 'Long-form pieces (blog or video)', unit: 'pieces', better: 'higher', baseline: 0, target: 6, latest: 0 },
+          { id: 't1f', name: 'Potential users interviewed', unit: 'people', better: 'higher', baseline: 0, target: 10, latest: 0 },
+          { id: 't1d', name: 'Products shipped (tracker + gateway)', unit: 'products', better: 'higher', baseline: 0, target: 2, latest: 0 },
+          { id: 't1e', name: 'Books finished', unit: 'books', better: 'higher', baseline: 0, target: 3, latest: 0 },
+        ],
+        phases: [
+          { name: 'Learn to learn', start: '2026-11-20', end: '2026-11-22', note: 'Set up the system: notebook, the Feynman loop, review cards and a daily plan. Day 0 baseline: explain a system design on camera, unscripted.' },
+          { name: 'System design', start: '2026-11-23', end: '2026-12-06', note: 'Foundations: networking, APIs, databases, caching, queues and scaling. Light mode on the family trip (Nov 27 to Dec 3): reading plus one concept a day.' },
+          { name: 'AI apps', start: '2026-12-07', end: '2026-12-13', note: 'LLM APIs, structured outputs, tool calling and RAG. Talk to 10 potential users of the AI visibility tracker, then build its core loop. Light mode Dec 6 to 8.' },
+          { name: 'AI system design', start: '2026-12-14', end: '2026-12-20', note: 'Designing AI systems: RAG at scale, agents, evals, guardrails, cost and latency, observability. Make the tracker production-ready and launch the MVP on Dec 19.' },
+          { name: 'AI infra', start: '2026-12-21', end: '2026-12-27', note: 'Inference and serving, GPUs, batching, quantization, vector databases, deployment. Build and open-source the LLM gateway the tracker runs on, with one self-hosted model route.' },
+          { name: 'Capstone', start: '2026-12-28', end: '2026-12-31', note: 'Teach it back: one long-form piece on everything you learned, redo the Day 0 explanation, and plan Chapter 2.' },
+        ],
+      },
+      {
+        id: 'c2',
+        n: 2,
+        name: 'The Pitch',
+        skill: 'Communication, sales and marketing (tentative, decide by Dec 31)',
+        start: '2027-01-08',
+        end: '2027-02-18',
+        tests: [
+          { id: 't0000s', name: 'Freelance clients landed', unit: 'clients', better: 'higher', baseline: null, target: 3, latest: null },
+          { id: 't0000t', name: 'Coaching clients landed', unit: 'clients', better: 'higher', baseline: null, target: 5, latest: null },
+        ],
+        phases: [],
+      },
+      {
+        id: 'c3',
+        n: 3,
+        name: 'The Build',
+        skill: 'Build and sell an app (tentative)',
+        start: '2027-02-19',
+        end: '2027-04-15',
+        tests: [
+          { id: 't0000u', name: 'Paying users', unit: 'users', better: 'higher', baseline: null, target: 50, latest: null },
+        ],
+        phases: [],
+      },
+      {
+        id: 'c4',
+        n: 4,
+        name: 'Strength',
+        skill: 'Calisthenics (tentative)',
+        start: '2027-04-16',
+        end: '2027-05-27',
+        tests: [],
+        phases: [],
+      },
+      {
+        id: 'c5',
+        n: 5,
+        name: 'The Lens',
+        skill: 'Filmmaking (tentative)',
+        start: '2027-05-28',
+        end: '2027-06-30',
+        tests: [],
+        phases: [],
+      },
+      {
+        id: 'c6',
+        n: 6,
+        name: 'The Stage',
+        skill: 'Stand-up comedy (tentative)',
+        start: '2027-07-01',
+        end: '2027-07-31',
+        tests: [],
+        phases: [],
+      },
+      {
+        id: 'c7',
+        n: 7,
+        name: 'New Words',
+        skill: 'Thai, with memory techniques (tentative)',
+        start: '2027-08-01',
+        end: '2027-09-10',
+        tests: [],
+        phases: [],
+      },
+      {
+        id: 'c8',
+        n: 8,
+        name: 'The Fight',
+        skill: 'Muay Thai in Chiang Mai (tentative)',
+        start: '2027-10-01',
+        end: '2027-10-31',
+        tests: [],
+        phases: [],
+      },
+      {
+        id: 'c9',
+        n: 9,
+        name: 'The Deep',
+        skill: 'Freediving (tentative)',
+        start: '2027-11-01',
+        end: '2027-11-14',
+        tests: [],
+        phases: [],
+      },
     ],
     habits: [
-      { id: 'h_med', name: 'Meditation', type: 'minutes', step: 10, daysPerWeek: 7, targets: [{ from: '2026-11-16', value: 30 }, { from: '2026-11-23', value: 50 }, { from: '2026-11-30', value: 80 }, { from: '2026-12-07', value: 100 }, { from: '2026-12-14', value: 120 }], activeFrom: '2026-11-17', activeTo: null, pauses: retreat.map((p) => ({ ...p })) },
-      { id: 'h_yoga', name: 'Yoga', type: 'minutes', step: 15, daysPerWeek: 7, targets: [{ from: '2026-11-16', value: 45 }], activeFrom: '2026-11-17', activeTo: null, pauses: retreat.map((p) => ({ ...p })) },
-      { id: 'h_read', name: 'Read 10 min', type: 'check', step: 1, daysPerWeek: 7, targets: [{ from: '2026-11-16', value: 1 }], activeFrom: '2026-11-17', activeTo: null, pauses: retreat.map((p) => ({ ...p })) },
-      { id: 'h_log', name: 'Nightly log', type: 'check', auto: 'journal', step: 1, daysPerWeek: 7, targets: [{ from: '2026-11-16', value: 1 }], activeFrom: '2026-11-17', activeTo: null, pauses: retreat.map((p) => ({ ...p })) },
+      { id: 'h_deep', name: 'Deep work', type: 'minutes', step: 30, daysPerWeek: 6, targets: [{'from': '2026-11-20', 'value': 240}], activeFrom: '2026-11-20', activeTo: null, pauses: [{'from': '2026-11-27', 'to': '2026-12-03'}, {'from': '2026-12-06', 'to': '2026-12-08'}] },
+      { id: 'h_teach', name: 'Teach one thing in public', type: 'check', step: 1, daysPerWeek: 5, targets: [{'from': '2026-11-20', 'value': 1}], activeFrom: '2026-11-20', activeTo: null, pauses: [] },
+      { id: 'h_books', name: 'Read 20 min', type: 'minutes', step: 10, daysPerWeek: 7, targets: [{'from': '2026-11-20', 'value': 20}], activeFrom: '2026-11-20', activeTo: null, pauses: [] },
+      { id: 'h_yoga', name: 'Yoga', type: 'minutes', step: 15, daysPerWeek: 7, targets: [{'from': '2026-11-20', 'value': 15}], activeFrom: '2026-11-20', activeTo: null, pauses: [] },
+      { id: 'h_med', name: 'Meditation', type: 'minutes', step: 10, daysPerWeek: 7, targets: [{'from': '2026-11-20', 'value': 10}], activeFrom: '2026-11-20', activeTo: null, pauses: [] },
+      { id: 'h_log', name: 'Nightly log + plan tomorrow', type: 'check', auto: 'journal', step: 1, daysPerWeek: 7, targets: [{'from': '2026-11-20', 'value': 1}], activeFrom: '2026-11-20', activeTo: null, pauses: [] },
     ],
     plans: [
-      { id: 'pl1', title: 'Day 0 baseline tests', start: '2026-11-17', end: '2026-11-17', cat: 'learning' },
-      { id: 'pl2', title: 'Mini-retreat day', start: '2026-12-13', end: '2026-12-13', cat: 'health' },
-      { id: 'pl3', title: 'Day 33 retests', start: '2026-12-19', end: '2026-12-19', cat: 'learning' },
-      { id: 'pl4', title: 'Vipassana', start: '2026-12-20', end: '2026-12-31', cat: 'personal', milestone: true },
-      { id: 'pl5', title: 'Integration week', start: '2027-01-01', end: '2027-01-07', cat: 'work' },
+      { id: 'pl1', title: 'Day 0: explain a system design on camera', start: '2026-11-20', end: '2026-11-20', cat: 'learning' },
+      { id: 'pl7', title: 'Family trip', start: '2026-11-27', end: '2026-12-03', cat: 'travel' },
+      { id: 'pl8', title: "Friend's birthday trip", start: '2026-12-06', end: '2026-12-08', cat: 'personal' },
+      { id: 'pl11', title: 'Talk to 10 potential users', start: '2026-12-09', end: '2026-12-13', cat: 'work' },
+      { id: 'pl9', title: 'Launch the AI visibility tracker', start: '2026-12-19', end: '2026-12-19', cat: 'work', milestone: true },
+      { id: 'pl12', title: 'Open-source the LLM gateway', start: '2026-12-26', end: '2026-12-26', cat: 'work' },
+      { id: 'pl10', title: 'Chapter 1 finale', start: '2026-12-31', end: '2026-12-31', cat: 'learning', milestone: true },
+      { id: 'pl5', title: 'Plan Chapter 2', start: '2027-01-01', end: '2027-01-07', cat: 'work' },
       { id: 'pl6', title: 'Chiang Mai month', start: '2027-10-01', end: '2027-10-31', cat: 'travel', milestone: true },
     ],
     weeks: {
-      '1': { focus: 'Day Zero' },
-      '2': { focus: 'The Struggle' },
-      '3': { focus: 'First Wins' },
-      '4': { focus: 'Going Deeper' },
-      '5': { focus: 'Before the Silence' },
-      '6': { focus: 'Silence' },
-      '7': { focus: 'Silence' },
-      '8': { focus: 'After the Silence' },
+      '1': { focus: 'Learn how to learn' },
+      '2': { focus: 'System design foundations' },
+      '3': { focus: 'On the road: read and reflect' },
+      '4': { focus: 'Building AI apps' },
+      '5': { focus: 'AI system design' },
+      '6': { focus: 'AI infra' },
+      '7': { focus: 'Capstone and teach-back' },
     },
     goals: {
       q1: { text: '', done: false },
@@ -112,5 +155,31 @@ export function buildTemplate(): State {
       q4: { text: '', done: false },
     },
   };
+  const posts: State['posts'] = [
+    { id: 'p101', title: "Series trailer: why I'm spending a year as a beginner", bucket: 'Story', format: 'Long', platform: 'YouTube', date: '2026-11-21', status: 'Planned', link: '' },
+    { id: 'p102', title: 'Chapter 1: 6 weeks of nerding out on system design and AI', bucket: 'Story', format: 'Short', platform: 'X + Reels', date: '2026-11-21', status: 'Planned', link: '' },
+    { id: 'p103', title: "How I'm learning: Feynman, Da Vinci and 80/20", bucket: 'Lesson', format: 'Long', platform: 'Blog + X thread', date: '2026-11-22', status: 'Planned', link: '' },
+    { id: 'p104', title: 'What happens when you type a URL, explained simply', bucket: 'Lesson', format: 'Short', platform: 'X thread', date: '2026-11-23', status: 'Planned', link: '' },
+    { id: 'p105', title: 'SQL vs NoSQL: how to actually choose', bucket: 'Lesson', format: 'Short', platform: 'X thread', date: '2026-11-24', status: 'Planned', link: '' },
+    { id: 'p106', title: 'My system design notebook, week 1', bucket: 'Progress', format: 'Short', platform: 'Reels + Shorts', date: '2026-11-25', status: 'Planned', link: '' },
+    { id: 'p107', title: 'Caching, explained with a fridge', bucket: 'Lesson', format: 'Short', platform: 'Reels + Shorts', date: '2026-11-26', status: 'Planned', link: '' },
+    { id: 'p108', title: 'Learning on a family trip', bucket: 'Real moment', format: 'Short', platform: 'Reels + Shorts', date: '2026-11-29', status: 'Planned', link: '' },
+    { id: 'p109', title: "The 3 books I'm reading this chapter, and why", bucket: 'Story', format: 'Short', platform: 'X + Reels', date: '2026-12-02', status: 'Planned', link: '' },
+    { id: 'p110', title: 'Sharding and replication, explained simply', bucket: 'Lesson', format: 'Short', platform: 'X thread', date: '2026-12-04', status: 'Planned', link: '' },
+    { id: 'p111', title: 'System design foundations in 15 minutes', bucket: 'Lesson', format: 'Long', platform: 'YouTube', date: '2026-12-05', status: 'Planned', link: '' },
+    { id: 'p112', title: 'How LLM apps actually work: tokens, context and tool calls', bucket: 'Lesson', format: 'Short', platform: 'X thread', date: '2026-12-09', status: 'Planned', link: '' },
+    { id: 'p113', title: 'RAG, explained simply', bucket: 'Lesson', format: 'Short', platform: 'Reels + Shorts', date: '2026-12-11', status: 'Planned', link: '' },
+    { id: 'p123', title: "GEO explained: how brands end up in ChatGPT's answers", bucket: 'Lesson', format: 'Short', platform: 'X thread', date: '2026-12-12', status: 'Planned', link: '' },
+    { id: 'p114', title: "Why I'm building an AI visibility tracker", bucket: 'Story', format: 'Short', platform: 'X + Reels', date: '2026-12-13', status: 'Planned', link: '' },
+    { id: 'p124', title: 'What 10 founders told me about AI search', bucket: 'Real moment', format: 'Short', platform: 'X + Reels', date: '2026-12-14', status: 'Planned', link: '' },
+    { id: 'p115', title: 'The 6 questions I ask before designing any AI system', bucket: 'Lesson', format: 'Short', platform: 'X thread', date: '2026-12-15', status: 'Planned', link: '' },
+    { id: 'p116', title: 'Designing a ChatGPT-style app at scale', bucket: 'Lesson', format: 'Long', platform: 'YouTube', date: '2026-12-17', status: 'Planned', link: '' },
+    { id: 'p117', title: 'Launch: my AI visibility tracker (MVP)', bucket: 'Progress', format: 'Short', platform: 'X + Reels', date: '2026-12-19', status: 'Planned', link: '' },
+    { id: 'p118', title: 'What happens when you call an LLM API: inference, GPUs, batching', bucket: 'Lesson', format: 'Short', platform: 'X thread', date: '2026-12-22', status: 'Planned', link: '' },
+    { id: 'p119', title: 'Quantization, explained simply', bucket: 'Lesson', format: 'Short', platform: 'Reels + Shorts', date: '2026-12-24', status: 'Planned', link: '' },
+    { id: 'p120', title: 'Open-sourcing my LLM gateway, with benchmarks', bucket: 'Progress', format: 'Long', platform: 'Blog + Show HN', date: '2026-12-26', status: 'Planned', link: '' },
+    { id: 'p121', title: 'Everything I learned in 6 weeks of nerding out', bucket: 'Story', format: 'Long', platform: 'Blog + YouTube', date: '2026-12-29', status: 'Planned', link: '' },
+    { id: 'p122', title: 'Day 0 vs Day 41: explaining system design, then and now', bucket: 'Progress', format: 'Short', platform: 'Reels + Shorts', date: '2026-12-31', status: 'Planned', link: '' },
+  ];
   return { meta, posts, income: [], logs: {}, journal: {} };
 }

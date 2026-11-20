@@ -2,7 +2,7 @@
  * The web version of the phone's UI kit (src/components/ui.tsx): same
  * components and props, built from plain DOM elements.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { addD, fmt, isDate, todayS } from '@core/utils/dates';
 import Feather, { type IconName } from '@web/lib/icons';
 import { Pressable, StyleSheet, Text, View, css, type StyleProp, type TextStyle, type ViewStyle } from '@web/lib/rn';
@@ -39,17 +39,25 @@ export function Screen({ children }: { children: ReactNode }) {
 
 /** The content of a dialog (every non-tab route). The dialog frame itself is in App.tsx. */
 export function ModalScreen({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {
+  const head = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && router.back();
+    // Screen readers and keyboards start at the title, unless a field asked for focus.
+    if (!document.activeElement || document.activeElement === document.body || !head.current?.closest('[role=dialog]')?.contains(document.activeElement)) head.current?.focus({ preventScroll: true });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      // Esc closes menus first; only a bare Esc closes the dialog.
+      if (document.querySelector('[role=menu], [role=alertdialog]')) return;
+      router.back();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   return (
     <>
       <View style={styles.modalHead}>
-        <T w={700} s={22} style={{ flex: 1 }}>
+        <h2 id="modal-title" ref={head} tabIndex={-1} className="modal-title">
           {title}
-        </T>
+        </h2>
         {right}
         <IconBtn name="x" label="Close" onPress={() => router.back()} />
       </View>
@@ -72,12 +80,19 @@ export function Card({ children, style, onPress, label }: { children: ReactNode;
 
 export const Sep = () => <View style={styles.sep} />;
 
+/** The screen's title, as its one h1. Focused after moving between tabs, so keyboards start here. */
+export function PageTitle({ children, small }: { children: ReactNode; small?: boolean }) {
+  return (
+    <h1 id="page-title" tabIndex={-1} className={small ? 'page-h1 small' : 'page-h1'}>
+      {children}
+    </h1>
+  );
+}
+
 export function Section({ left, right }: { left: string; right?: string }) {
   return (
     <View style={styles.section}>
-      <T w={600} s={13} c={C.mut}>
-        {left}
-      </T>
+      <h2 className="section-h">{left}</h2>
       {right ? (
         <T w={600} s={13} c={C.mut}>
           {right}
@@ -118,17 +133,23 @@ export function Bar({ pct, h = 4, color = C.lit }: { pct: number; h?: number; co
 export const Dot = ({ color, size = 8 }: { color: string; size?: number }) => <View style={{ width: size, height: size, borderRadius: 2, backgroundColor: color }} />;
 
 /* ---------- controls ---------- */
+/** Icon button. When disabled it stays focusable (aria-disabled) so focus isn't lost when, say,
+ *  "Next week" reaches the last week while you're on it. */
 export function IconBtn({ name, onPress, label, disabled, size = 44, iconSize = 18 }: { name: IconName; onPress: () => void; label: string; disabled?: boolean; size?: number; iconSize?: number }) {
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => [styles.iconBtn, { width: size, height: size, borderRadius: size > 36 ? 12 : 9 }, pressed && styles.pressed, disabled && { opacity: 0.35 }]}
+    <button
+      type="button"
+      className="v press ibtn"
+      aria-label={label}
+      aria-disabled={disabled || undefined}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!disabled) onPress();
+      }}
+      style={css([styles.iconBtn, { width: size, height: size, borderRadius: size > 36 ? 12 : 9 }, disabled && { opacity: 0.35, cursor: 'default' }])}
     >
       <Feather name={name} size={iconSize} color={C.tx2} />
-    </Pressable>
+    </button>
   );
 }
 
@@ -150,7 +171,7 @@ export function Chip({ label, on, onPress, dot, dim }: { label: string; on?: boo
     <Pressable
       onPress={onPress}
       accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityState={onPress ? { selected: !!on } : undefined}
+      accessibilityState={onPress && on !== undefined ? { selected: !!on } : undefined}
       style={({ pressed }) => [styles.chip, on && styles.chipOn, dim && { opacity: 0.4 }, pressed && styles.pressed]}
     >
       {dot ? <Dot color={dot} /> : null}
@@ -192,6 +213,7 @@ export function Label({ children }: { children: string }) {
 
 type FieldProps = {
   label?: string;
+  id?: string;
   value?: string;
   onChangeText?: (v: string) => void;
   /** Called when the field loses focus (or Enter in a one-line field). */
@@ -216,6 +238,7 @@ type FieldProps = {
 export function Field({ label, style, multiline, ...p }: FieldProps) {
   const inputMode = p.keyboardType === 'number-pad' ? 'numeric' : p.keyboardType === 'decimal-pad' ? 'decimal' : p.keyboardType === 'url' ? 'url' : p.keyboardType === 'email-address' ? 'email' : undefined;
   const common = {
+    id: p.id,
     value: p.value ?? '',
     placeholder: p.placeholder,
     maxLength: p.maxLength,

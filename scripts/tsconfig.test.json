@@ -10,5 +10,5 @@
     "outDir": "../.test-build",
     "rootDir": "../src"
   },
-  "files": ["../src/data/store.ts", "../src/data/sync.ts", "../src/data/sync-local.ts", "../src/utils/logic.ts"]
+  "files": ["../src/data/store.ts", "../src/data/sync.ts", "../src/data/sync-local.ts", "../src/utils/logic.ts", "../src/utils/progress.ts"]
 }

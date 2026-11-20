@@ -74,10 +74,10 @@ const a11y = ({ accessibilityLabel, accessibilityRole, accessibilityState }: A11
   'aria-pressed': accessibilityRole !== 'checkbox' && accessibilityState?.selected !== undefined ? !!accessibilityState.selected : undefined,
 });
 
-export function View({ style, children, ...rest }: { style?: StyleProp; children?: ReactNode; collapsable?: boolean; pointerEvents?: string } & A11y & { ref?: any }) {
-  const { ref, pointerEvents } = rest as any;
+export function View({ style, children, ...rest }: { style?: StyleProp; children?: ReactNode; collapsable?: boolean; pointerEvents?: string; nativeID?: string } & A11y & { ref?: any }) {
+  const { ref, pointerEvents, nativeID } = rest as any;
   return (
-    <div ref={ref} className="v" style={{ ...css(style), ...(pointerEvents === 'none' ? { pointerEvents: 'none' } : {}) }} {...a11y(rest)}>
+    <div ref={ref} id={nativeID} className="v" style={{ ...css(style), ...(pointerEvents === 'none' ? { pointerEvents: 'none' } : {}) }} {...a11y(rest)}>
       {children}
     </div>
   );
@@ -105,7 +105,7 @@ export function Pressable({
   onPress,
   disabled,
   ...rest
-}: { style?: PressableStyle; children?: ReactNode | ((s: { pressed: boolean }) => ReactNode); onPress?: () => void; disabled?: boolean; hitSlop?: number; onLongPress?: () => void } & A11y) {
+}: { style?: PressableStyle; children?: ReactNode | ((s: { pressed: boolean }) => ReactNode); onPress?: () => void; disabled?: boolean; hitSlop?: number; onLongPress?: () => void; nativeID?: string } & A11y) {
   const [pressed, setPressed] = useState(false);
   const st = typeof style === 'function' ? style({ pressed }) : style;
   const body = typeof children === 'function' ? children({ pressed }) : children;
@@ -118,6 +118,7 @@ export function Pressable({
   return (
     <button
       type="button"
+      id={rest.nativeID}
       className="v press"
       disabled={disabled}
       onClick={(e) => {

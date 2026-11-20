@@ -31,7 +31,10 @@ export const UI = {
   bucket: 'All',
   moneyMonth: '',
   yearView: 'weeks' as 'weeks' | 'days',
+  /** Plan categories hidden on the board and in share images (this device only). */
   hideCats: new Set<CatId>(),
+  /** Habit shown alone on the board ("spotlight"), or '' for all habits (this device only). */
+  spotlight: '' as string,
 };
 
 let version = 0;

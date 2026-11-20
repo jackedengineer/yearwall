@@ -1,5 +1,7 @@
 export type CatId = 'work' | 'learning' | 'health' | 'travel' | 'personal';
 export type SourceId = 'freelance' | 'coaching' | 'app' | 'brand' | 'other';
+/** Each habit's own colour. Habits saved before colours existed get one from their position (see habitColorId). */
+export type HabitColor = 'green' | 'violet' | 'blue' | 'amber' | 'pink' | 'teal';
 
 export type Settings = {
   currency: string;
@@ -7,6 +9,8 @@ export type Settings = {
   weeklyPostTarget: number;
   tourDone: boolean;
   day0: string;
+  /** Version of the tour last seen (2 = the coach-mark tour). Older apps keep this key untouched. */
+  tourSeen?: number;
 };
 
 export type Test = {
@@ -44,12 +48,18 @@ export type Habit = {
   activeFrom: string;
   activeTo: string | null;
   pauses: { from: string; to: string }[];
+  color?: HabitColor;
 };
 
-export type Plan = { id: string; title: string; start: string; end: string; cat: CatId; milestone?: boolean };
+/** outcome: set once a plan's dates have passed ("Did it happen?"). Missing or null means not answered yet;
+ *  clearing an answer writes null so the server removes it (it merges fields; see web/worker/sync-db.ts). */
+export type Plan = { id: string; title: string; start: string; end: string; cat: CatId; milestone?: boolean; outcome?: 'done' | 'missed' | null };
 
 export type WeekInfo = { focus?: string; notes?: string };
-export type Goal = { text: string; done: boolean };
+export type GoalItem = { id: string; text: string; done: boolean };
+/** A quarter's goals. items (up to 5) is the checklist; text and done mirror it for older clients
+ *  (text = item texts, one per line; done = every item done). See goalItems() for reading. */
+export type Goal = { text: string; done: boolean; items?: GoalItem[] };
 export type GoalKey = 'q1' | 'q2' | 'q3' | 'q4';
 
 export type Meta = {

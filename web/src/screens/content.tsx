@@ -2,7 +2,7 @@
 import Feather from '@web/lib/icons';
 import { router } from '@web/lib/router';
 import { Pressable, View } from '@web/lib/rn';
-import { Bar, Card, Chip, Chips, Empty, IconBtn, Screen, Section, T } from '@web/ui';
+import { Bar, Card, Chip, Chips, Empty, IconBtn, PageTitle, Screen, Section, T } from '@web/ui';
 import { BUCKETS, STATUS_COLOR } from '@core/constants';
 import { commit, S, UI } from '@core/data/state';
 import { useStore } from '@web/lib/use-store';
@@ -29,9 +29,7 @@ export function Content() {
   return (
     <Screen>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <T w={700} s={28} style={{ lineHeight: 34 }}>
-          Content
-        </T>
+        <PageTitle>Content</PageTitle>
         <Pressable
           onPress={() => router.push({ pathname: '/post/[id]', params: { id: 'new', date: days.includes(t) ? t : days[0] } })}
           accessibilityRole="button"

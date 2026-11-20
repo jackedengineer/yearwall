@@ -10,6 +10,7 @@ import { S, UI } from '@core/data/state';
 import { applyRemote, initMemoryStore, seedTemplate, setTouchHandler } from '@core/data/store';
 import { createSync, type Sync, type SyncStatus, type SyncStore } from '@core/data/sync';
 import { clampWeek, monKey, todayS, weekOf, YEAR_START } from '@core/utils/dates';
+import { loadViewState } from '@web/lib/view-state';
 
 const KEY = 'yearwall.syncKey';
 const OUTBOX = 'yearwall.outbox';
@@ -124,6 +125,7 @@ export async function boot(): Promise<Boot> {
   UI.day = t < YEAR_START ? YEAR_START : t;
   UI.contentWeek = clampWeek(weekOf(t));
   UI.moneyMonth = monKey(t < YEAR_START ? YEAR_START : t);
+  loadViewState();
 
   // Sync every few seconds while the tab is visible, and right away when it comes back.
   sync.start(EVERY_MS);

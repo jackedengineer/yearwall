@@ -1,7 +1,7 @@
 // Web version of src/screens/chapter.tsx (ported from the phone app).
 import { router } from '@web/lib/router';
 import { Pressable, View } from '@web/lib/rn';
-import { Bar, Btn, Card, Empty, IconBtn, Screen, Section, T } from '@web/ui';
+import { Bar, Btn, Card, Empty, IconBtn, PageTitle, Screen, Section, T } from '@web/ui';
 import { commit, UI } from '@core/data/state';
 import { useStore } from '@web/lib/use-store';
 import { C } from '@web/lib/theme';
@@ -15,9 +15,7 @@ export function ChapterScreen() {
   if (!cs.length)
     return (
       <Screen>
-        <T w={700} s={30}>
-          Chapters
-        </T>
+        <PageTitle>Chapters</PageTitle>
         <Empty>No chapters yet.</Empty>
         <Btn label="Add a chapter" onPress={() => router.push({ pathname: '/chapter-edit/[id]', params: { id: 'new' } })} />
       </Screen>
@@ -39,9 +37,7 @@ export function ChapterScreen() {
           <T w={600} s={13} c={C.mut}>
             Chapter {c.n} of {cs.length}, {fmtRange(c.start, c.end)}
           </T>
-          <T w={700} s={34} style={{ letterSpacing: -0.7, lineHeight: 42 }}>
-            {c.name}
-          </T>
+          <PageTitle>{c.name}</PageTitle>
           <T s={14} c={C.tx2}>
             {c.skill}
           </T>
