@@ -33,6 +33,8 @@ export function useDragToPlan(ref: RefObject<HTMLElement | null>, onRange: (star
     };
 
     const down = (e: PointerEvent) => {
+      // A drag that ended outside the board never got its click: don't eat this one.
+      swallowClick = false;
       if (e.pointerType === 'touch' || e.button !== 0) return;
       const d = (e.target as HTMLElement).closest<HTMLElement>('[data-date]')?.dataset.date;
       if (!d) return;
@@ -59,6 +61,10 @@ export function useDragToPlan(ref: RefObject<HTMLElement | null>, onRange: (star
       reset();
       if (dragged) {
         swallowClick = true;
+        // The click (if any) arrives right after pointerup; after that, stop swallowing.
+        setTimeout(() => {
+          swallowClick = false;
+        }, 0);
         onRange(a, b, e.clientX);
       }
     };

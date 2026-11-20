@@ -9,7 +9,7 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 
 export type ConfirmAction = { id: string; label: string; kind?: 'danger' | 'ghost' | 'primary' };
-type Request = { title: string; body: string; actions: ConfirmAction[]; cancelLabel?: string; resolve: (id: string | null) => void };
+type Request = { title: string; body: string; actions: ConfirmAction[]; cancelLabel?: string; returnFocus?: HTMLElement | null; resolve: (id: string | null) => void };
 
 let open: Request | null = null;
 const listeners = new Set<() => void>();
@@ -45,7 +45,7 @@ export function ConfirmHost() {
 
   useEffect(() => {
     if (!req) return;
-    const back = document.activeElement as HTMLElement | null;
+    const back = req.returnFocus ?? (document.activeElement as HTMLElement | null);
     cancel.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -62,7 +62,11 @@ export function ConfirmHost() {
     window.addEventListener('keydown', onKey, true);
     return () => {
       window.removeEventListener('keydown', onKey, true);
-      back?.focus?.();
+      // After the dialog closes, unless the action already moved focus somewhere useful.
+      requestAnimationFrame(() => {
+        const a = document.activeElement;
+        if ((!a || a === document.body) && back?.isConnected) back.focus();
+      });
     };
   }, [req]);
 

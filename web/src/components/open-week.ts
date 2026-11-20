@@ -10,8 +10,9 @@ import { router } from '@web/lib/router';
 export type WeekOpen = { from?: string; to?: string; focus?: 'plan'; x?: number };
 
 export function openWeek(w: number, o: WeekOpen = {}) {
-  // Without a pointer position, use the focused element (the week you clicked or pressed Enter on).
-  const r = (document.activeElement as HTMLElement | null)?.getBoundingClientRect?.();
+  // Without a pointer position, use where that week sits on the board (or the focused element).
+  const el = document.getElementById(`wk-${clampWeek(w)}`) ?? (document.activeElement as HTMLElement | null);
+  const r = el?.getBoundingClientRect?.();
   const x = o.x ?? (r ? r.left + r.width / 2 : 0);
   const side = x > window.innerWidth / 2 ? 'left' : 'right';
   const params: Record<string, string> = { w: String(clampWeek(w)), side };

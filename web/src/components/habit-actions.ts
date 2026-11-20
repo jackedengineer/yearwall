@@ -39,16 +39,27 @@ export function openTonightsLog(d: string) {
   }
 }
 
+/** When the focused control disappeared (its card was archived or deleted), focus the next habit or the title. */
+function keepFocus() {
+  requestAnimationFrame(() => {
+    const a = document.activeElement;
+    if (a && a !== document.body && a.isConnected) return;
+    (document.querySelector<HTMLElement>('.hcards .ring') ?? document.getElementById('page-title'))?.focus();
+  });
+}
+
 export function archiveHabit(h: Habit) {
   const before = S.meta.habits.find((x) => x.id === h.id);
   if (!before) return;
   actions.archiveHabit(h.id);
   toast({ message: `${h.name} archived. Its history stays.`, undo: () => actions.saveHabit(before) });
+  keepFocus();
 }
 
 /** Asks first (Cancel focused). Returns true when the habit was deleted or archived. */
-export async function deleteHabit(h: Habit): Promise<boolean> {
+export async function deleteHabit(h: Habit, returnFocus?: HTMLElement | null): Promise<boolean> {
   const choice = await confirmDialog({
+    returnFocus,
     title: `Delete ${h.name}?`,
     body: 'It disappears from Today, the board and your stats, along with the days you logged. To stop tracking it but keep its history, archive it instead.',
     actions: [
@@ -63,6 +74,7 @@ export async function deleteHabit(h: Habit): Promise<boolean> {
   if (choice === 'delete') {
     actions.deleteHabit(h.id);
     toast({ message: `${h.name} deleted.` });
+    keepFocus();
     return true;
   }
   return false;

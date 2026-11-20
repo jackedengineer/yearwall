@@ -10,7 +10,7 @@ import { CAT, CATS } from '@core/constants';
 import { commit, S, UI } from '@core/data/state';
 import { actions } from '@core/data/store';
 import type { CatId, Habit, Plan } from '@core/data/types';
-import { addD, clampWeek, DOW, dowI, fmt, fmtRange, pd, plural, todayS, weekDays, weekOf, WEEKS } from '@core/utils/dates';
+import { addD, clampWeek, DOW, dowI, fmt, fmtRange, isDate, pd, plural, todayS, weekDays, weekOf, WEEKS } from '@core/utils/dates';
 import { doneOn, isActive, journalOn, plansOn, targetOn, valueOn } from '@core/utils/logic';
 import { habitColor, logMessage, weekProgress, whenLabel } from '@core/utils/progress';
 import { colorVars } from '@web/components/habit-card';
@@ -23,8 +23,13 @@ import { C } from '@web/lib/theme';
 import { useStore } from '@web/lib/use-store';
 import { Btn, Chip, Chips, Field, IconBtn, ModalScreen, T } from '@web/ui';
 
-/** Tick a day in the grid: check habits toggle; minute habits fill the day's target or clear it. */
+/** Tick a day in the grid: check habits toggle; minute habits fill in the day's target. A minute day
+ *  that's already done opens exact entry instead, so a click never wipes the minutes you logged. */
 function toggleDay(h: Habit, d: string) {
+  if (h.type === 'minutes' && doneOn(h, d)) {
+    router.push({ pathname: '/minutes/[hid]', params: { hid: h.id, d } });
+    return;
+  }
   const before = valueOn(h, d);
   const after = doneOn(h, d) ? 0 : targetOn(h, d);
   actions.setValue(h, d, after);
@@ -36,7 +41,7 @@ function HabitGrid({ days }: { days: string[] }) {
   const hs = S.meta.habits.filter((h) => days.some((d) => isActive(h, d)));
   if (!hs.length) return <p className="hc-line">No habits are scheduled this week.</p>;
   return (
-    <div className="wgrid" role="grid" aria-label="Habits this week">
+    <div className="wgrid" role="table" aria-label="Habits this week">
       <div className="wgrid-row head" role="row">
         <span role="columnheader" className="wgrid-name">
           Habits
@@ -66,13 +71,15 @@ function HabitGrid({ days }: { days: string[] }) {
               const auto = h.auto === 'journal';
               const state = !active ? 'off' : done ? 'done' : part ? 'partial' : d > t ? 'future' : 'empty';
               return (
-                <span key={d} role="gridcell" className="wgrid-cell">
+                <span key={d} role="cell" className="wgrid-cell">
                   <button
                     type="button"
                     className={`wcell s-${state}${d === t ? ' today' : ''}`}
                     disabled={off || auto}
-                    aria-pressed={active ? done : undefined}
-                    aria-label={`${done ? 'Unlog' : 'Log'} ${h.name} for ${fmt(d, { wd: true })}${!active ? ', not scheduled' : auto ? ', ticks itself from the log' : ''}`}
+                    aria-pressed={active && h.type === 'check' ? done : undefined}
+                    aria-label={`${h.type === 'minutes' && done ? 'Change minutes of' : 'Log'} ${h.name} for ${fmt(d, { wd: true })}${
+                      !active ? ', not scheduled' : auto ? `, ${done ? 'done' : 'not done'}, ticks itself from the log` : h.type === 'minutes' ? `, ${valueOn(h, d)} of ${targetOn(h, d)} min` : ''
+                    }`}
                     onClick={() => toggleDay(h, d)}
                   >
                     {done ? <Feather name="check" size={13} /> : null}
@@ -80,7 +87,7 @@ function HabitGrid({ days }: { days: string[] }) {
                 </span>
               );
             })}
-            <span role="gridcell" className="wgrid-count" aria-label={`${p.done} of ${p.target} done`}>
+            <span role="cell" className="wgrid-count" aria-label={`${p.done} of ${p.target} done`}>
               {p.done}/{p.target}
             </span>
           </div>
@@ -91,8 +98,11 @@ function HabitGrid({ days }: { days: string[] }) {
 }
 
 /** Quick add: title, Mon to Sun chips (any days; the plan runs from the first to the last), category. */
-function QuickAdd({ w, days, from, to, focusTitle }: { w: number; days: string[]; from?: string; to?: string; focusTitle: boolean }) {
+function QuickAdd({ w, days, from: rawFrom, to: rawTo, focusTitle }: { w: number; days: string[]; from?: string; to?: string; focusTitle: boolean }) {
   const t = todayS();
+  // Dates from the address are only used if they're real dates.
+  const from = rawFrom && isDate(rawFrom) ? rawFrom : undefined;
+  const to = rawTo && isDate(rawTo) ? rawTo : undefined;
   const [title, setTitle] = useState('');
   const [range, setRange] = useState<{ start: string; end: string } | null>(from ? { start: from, end: to && to >= from ? to : from } : null);
   const [cat, setCat] = useState<CatId>('work');
@@ -133,9 +143,9 @@ function QuickAdd({ w, days, from, to, focusTitle }: { w: number; days: string[]
         add();
       }}
     >
-      <label className="quick-label" htmlFor={`quick-title-${w}`}>
-        Add a plan
-      </label>
+      <h3 className="quick-label wsec-h" id={`quick-h-${w}`}>
+        <label htmlFor={`quick-title-${w}`}>Add a plan</label>
+      </h3>
       <input
         id={`quick-title-${w}`}
         ref={input}
@@ -145,12 +155,12 @@ function QuickAdd({ w, days, from, to, focusTitle }: { w: number; days: string[]
         placeholder="e.g. Client call, mini-retreat day"
         autoComplete="off"
       />
-      <div className="quick-when">
+      <div className="quick-when" aria-live="polite">
         When: <strong>{when}</strong>
       </div>
       <div className="daychips" role="group" aria-label="Days">
         {days.map((d, i) => (
-          <button key={d} type="button" className={on(d) ? 'daychip on' : 'daychip'} aria-pressed={on(d)} aria-label={`${on(d) ? 'Remove' : 'Add'} ${fmt(d, { wd: true })}`} onClick={() => toggle(d)}>
+          <button key={d} type="button" className={on(d) ? 'daychip on' : 'daychip'} aria-pressed={on(d)} aria-label={fmt(d, { wd: true })} onClick={() => toggle(d)}>
             {DOW[i]}
           </button>
         ))}
@@ -167,9 +177,16 @@ function QuickAdd({ w, days, from, to, focusTitle }: { w: number; days: string[]
   );
 }
 
-function removePlan(p: Plan) {
+function removePlan(p: Plan, el: HTMLElement) {
+  // Where focus goes next: the next plan's Remove button, else the previous one, else the quick-add field.
+  const all = [...document.querySelectorAll<HTMLElement>('.wday-body [data-remove]')];
+  const i = all.indexOf(el);
   const gone = actions.deletePlan(p.id);
   if (gone) toast({ message: `Removed "${p.title}".`, undo: () => actions.savePlan(gone) });
+  requestAnimationFrame(() => {
+    const left = [...document.querySelectorAll<HTMLElement>('.wday-body [data-remove]')];
+    (left[i] ?? left[i - 1] ?? document.querySelector<HTMLElement>('.quick .field'))?.focus();
+  });
 }
 
 function DayList({ days }: { days: string[] }) {
@@ -181,7 +198,7 @@ function DayList({ days }: { days: string[] }) {
   return (
     <section aria-label="Days">
       <div className="wsec-head">
-        <span>Days{ended.length ? ` · ${happened} of ${ended.length} plans happened` : ''}</span>
+        <h3 className="wsec-h">Days{ended.length ? ` · ${happened} of ${ended.length} plans happened` : ''}</h3>
         <span>
           {plural(posts.length, 'post')}, {posted} posted
         </span>
@@ -210,12 +227,13 @@ function DayList({ days }: { days: string[] }) {
             <div className="wday-body">
               {ps.map((p) => (
                 <div key={p.id} className="wplan">
-                  <span className="dot" style={{ background: CAT[p.cat]?.color ?? C.mut }} />
+                  <span className="dot" style={{ background: CAT[p.cat]?.color ?? C.mut }} title={CAT[p.cat]?.name} />
                   <button type="button" className="wplan-title" onClick={() => router.push({ pathname: '/plan/[id]', params: { id: p.id } })}>
+                    <span className="sr-only">{CAT[p.cat]?.name}: </span>
                     {p.title}
                   </button>
                   {p.end !== p.start ? <span className="wplan-range">{fmtRange(p.start, p.end)}</span> : null}
-                  <button type="button" className="icon-btn small" aria-label={`Remove ${p.title}`} onClick={() => removePlan(p)}>
+                  <button type="button" className="icon-btn small" data-remove aria-label={`Remove ${p.title}`} onClick={(e) => removePlan(p, e.currentTarget)}>
                     <Feather name="x" size={14} />
                   </button>
                   {(p.end || p.start) === d || (d === days[6] && (p.end || p.start) > d) ? (
@@ -266,10 +284,13 @@ export default function WeekSheet() {
         </div>
       }
     >
-      <T w={600} s={12} c={C.mut} style={{ marginTop: -10 }}>
+      <T w={600} s={12} c={C.mut}>
         {pd(days[6]).getFullYear()}
         {w === weekOf(t) ? ', this week' : ''}
       </T>
+      <span className="sr-only" aria-live="polite">
+        Week {w}, {fmtRange(days[0], days[6])}
+      </span>
       <Field
         label="Week focus, shows on the board"
         value={focus}

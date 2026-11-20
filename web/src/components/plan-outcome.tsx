@@ -13,12 +13,27 @@ import { CAT } from '@core/constants';
 import Feather from '@web/lib/icons';
 
 export function PlanOutcome({ p }: { p: Plan }) {
+  // After answering, focus the inline Undo; after Undo, focus Yes. The wrapper stays put while its
+  // contents change, so find it before saving.
+  const answer = (e: { currentTarget: HTMLElement }, v: 'done' | 'missed' | null) => {
+    const row = e.currentTarget.closest<HTMLElement>('[data-outcome]');
+    actions.setPlanOutcome(p.id, v);
+    requestAnimationFrame(() => row?.querySelector<HTMLElement>(v ? '.outcome-undo' : '.outcome-btn')?.focus());
+  };
+  return (
+    <span data-outcome={p.id} className="outcome-wrap">
+      <OutcomeInner p={p} answer={answer} />
+    </span>
+  );
+}
+
+function OutcomeInner({ p, answer }: { p: Plan; answer: (e: { currentTarget: HTMLElement }, v: 'done' | 'missed' | null) => void }) {
   if (p.outcome)
     return (
       <span className={`outcome ${p.outcome}`}>
         <Feather name={p.outcome === 'done' ? 'check' : 'x'} size={13} />
         {p.outcome === 'done' ? 'Happened' : "Didn't happen"}
-        <button type="button" className="outcome-undo" aria-label={`Undo: ${p.title} ${p.outcome === 'done' ? 'happened' : "didn't happen"}`} onClick={() => actions.setPlanOutcome(p.id, null)}>
+        <button type="button" className="outcome-undo" aria-label={`Undo: ${p.title} ${p.outcome === 'done' ? 'happened' : "didn't happen"}`} onClick={(e) => answer(e, null)}>
           Undo
         </button>
       </span>
@@ -27,10 +42,10 @@ export function PlanOutcome({ p }: { p: Plan }) {
   return (
     <span className="outcome ask" role="group" aria-label={`Did ${p.title} happen?`}>
       <span aria-hidden="true">Did it happen?</span>
-      <button type="button" className="outcome-btn" aria-label={`Yes, ${p.title} happened`} onClick={() => actions.setPlanOutcome(p.id, 'done')}>
+      <button type="button" className="outcome-btn" aria-label={`Yes, ${p.title} happened`} onClick={(e) => answer(e, 'done')}>
         Yes
       </button>
-      <button type="button" className="outcome-btn" aria-label={`No, ${p.title} didn't happen`} onClick={() => actions.setPlanOutcome(p.id, 'missed')}>
+      <button type="button" className="outcome-btn" aria-label={`No, ${p.title} didn't happen`} onClick={(e) => answer(e, 'missed')}>
         No
       </button>
     </span>

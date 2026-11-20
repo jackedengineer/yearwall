@@ -243,10 +243,12 @@ export const actions = {
     touch('habit', h.id);
     commit();
   },
-  /** Stops tracking a habit from today but keeps its history (it ended yesterday). */
+  /** Stops tracking a habit from today but keeps its history (it ends yesterday, or earlier if it already had). */
   archiveHabit(id: string) {
     const h = S.meta.habits.find((x) => x.id === id);
-    if (h) actions.saveHabit({ ...h, activeTo: addD(todayS(), -1) });
+    if (!h) return;
+    const yesterday = addD(todayS(), -1);
+    actions.saveHabit({ ...h, activeTo: h.activeTo && h.activeTo < yesterday ? h.activeTo : yesterday });
   },
   unarchiveHabit(id: string) {
     const h = S.meta.habits.find((x) => x.id === id);
@@ -295,14 +297,12 @@ export const actions = {
     commit();
     return gone;
   },
-  /** "Did it happen?" for a plan whose dates have passed. null clears the answer (Undo). */
-  setPlanOutcome(id: string, outcome: Plan['outcome'] | null) {
+  /** "Did it happen?" for a plan whose dates have passed. null clears the answer (Undo); it's written
+   *  as null rather than left out, because the server keeps fields a record leaves out. */
+  setPlanOutcome(id: string, outcome: 'done' | 'missed' | null) {
     const p = S.meta.plans.find((x) => x.id === id);
     if (!p) return;
-    const next: Plan = { ...p };
-    if (outcome) next.outcome = outcome;
-    else delete next.outcome;
-    actions.savePlan(next);
+    actions.savePlan({ ...p, outcome });
   },
 
   /* weeks + goals */

@@ -80,12 +80,19 @@ export function Card({ children, style, onPress, label }: { children: ReactNode;
 
 export const Sep = () => <View style={styles.sep} />;
 
+/** The screen's title, as its one h1. Focused after moving between tabs, so keyboards start here. */
+export function PageTitle({ children, small }: { children: ReactNode; small?: boolean }) {
+  return (
+    <h1 id="page-title" tabIndex={-1} className={small ? 'page-h1 small' : 'page-h1'}>
+      {children}
+    </h1>
+  );
+}
+
 export function Section({ left, right }: { left: string; right?: string }) {
   return (
     <View style={styles.section}>
-      <T w={600} s={13} c={C.mut}>
-        {left}
-      </T>
+      <h2 className="section-h">{left}</h2>
       {right ? (
         <T w={600} s={13} c={C.mut}>
           {right}
@@ -126,17 +133,23 @@ export function Bar({ pct, h = 4, color = C.lit }: { pct: number; h?: number; co
 export const Dot = ({ color, size = 8 }: { color: string; size?: number }) => <View style={{ width: size, height: size, borderRadius: 2, backgroundColor: color }} />;
 
 /* ---------- controls ---------- */
+/** Icon button. When disabled it stays focusable (aria-disabled) so focus isn't lost when, say,
+ *  "Next week" reaches the last week while you're on it. */
 export function IconBtn({ name, onPress, label, disabled, size = 44, iconSize = 18 }: { name: IconName; onPress: () => void; label: string; disabled?: boolean; size?: number; iconSize?: number }) {
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => [styles.iconBtn, { width: size, height: size, borderRadius: size > 36 ? 12 : 9 }, pressed && styles.pressed, disabled && { opacity: 0.35 }]}
+    <button
+      type="button"
+      className="v press ibtn"
+      aria-label={label}
+      aria-disabled={disabled || undefined}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!disabled) onPress();
+      }}
+      style={css([styles.iconBtn, { width: size, height: size, borderRadius: size > 36 ? 12 : 9 }, disabled && { opacity: 0.35, cursor: 'default' }])}
     >
       <Feather name={name} size={iconSize} color={C.tx2} />
-    </Pressable>
+    </button>
   );
 }
 
@@ -158,7 +171,7 @@ export function Chip({ label, on, onPress, dot, dim }: { label: string; on?: boo
     <Pressable
       onPress={onPress}
       accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityState={onPress ? { selected: !!on } : undefined}
+      accessibilityState={onPress && on !== undefined ? { selected: !!on } : undefined}
       style={({ pressed }) => [styles.chip, on && styles.chipOn, dim && { opacity: 0.4 }, pressed && styles.pressed]}
     >
       {dot ? <Dot color={dot} /> : null}

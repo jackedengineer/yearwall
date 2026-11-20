@@ -73,10 +73,14 @@ const STEPS: Step[] = [
 ];
 
 let step: number | null = null;
+let opener: HTMLElement | null = null;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
 
+/** Starts the tour; focus returns to whatever had it once the tour ends. */
 export function startTour() {
+  const a = document.activeElement as HTMLElement | null;
+  opener = a && a !== document.body ? a : null;
   step = 0;
   notify();
 }
@@ -84,7 +88,13 @@ export function startTour() {
 function finish() {
   step = null;
   notify();
-  if (!S.meta.settings.tourDone) actions.saveSettings({ tourDone: true });
+  const st = S.meta.settings;
+  if (!st.tourDone || (st.tourSeen ?? 0) < 2) actions.saveSettings({ tourDone: true, tourSeen: 2 });
+  requestAnimationFrame(() => {
+    const back = opener?.isConnected ? opener : document.getElementById('page-title');
+    back?.focus({ preventScroll: true });
+    opener = null;
+  });
 }
 
 const visible = (el: Element | null): el is HTMLElement => !!el && (el as HTMLElement).getBoundingClientRect().width > 0;
@@ -151,7 +161,8 @@ export function TourHost() {
   // Keyboard: Esc ends, arrows move, Tab stays in the card. Focus starts on the title.
   useEffect(() => {
     if (i === null) return;
-    card.current?.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true });
+    // Focus the card itself: screen readers then read "Step n of 9: title" and the step's text.
+    card.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -160,7 +171,7 @@ export function TourHost() {
       } else if (e.key === 'ArrowRight') go(1);
       else if (e.key === 'ArrowLeft') go(-1);
       else if (e.key === 'Tab' && card.current) {
-        const items = [...card.current.querySelectorAll<HTMLElement>('button, h2')];
+        const items = [...card.current.querySelectorAll<HTMLElement>('button')];
         const k = items.indexOf(document.activeElement as HTMLElement);
         e.preventDefault();
         items[(k + (e.shiftKey ? items.length - 1 : 1)) % items.length]?.focus();
@@ -202,18 +213,18 @@ export function TourHost() {
       ) : (
         <div className="tour-dim" />
       )}
-      <div ref={card} className="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-body" style={{ top, left, width: w }}>
+      <div ref={card} className="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-count tour-title" aria-describedby="tour-body" tabIndex={-1} style={{ top, left, width: w }}>
         <div className="tour-top">
-          <span className="tour-count">
+          <span className="tour-count" id="tour-count">
+            <span className="sr-only">Step </span>
             {i + 1} of {STEPS.length}
+            <span className="sr-only">:</span>
           </span>
           <button type="button" className="icon-btn small" aria-label="End the tour" onClick={finish}>
             <Feather name="x" size={14} />
           </button>
         </div>
-        <h2 id="tour-title" tabIndex={-1}>
-          {s.title}
-        </h2>
+        <h2 id="tour-title">{s.title}</h2>
         <p id="tour-body">{s.body()}</p>
         <div className="tour-foot">
           <span className="tour-dots" aria-hidden="true">

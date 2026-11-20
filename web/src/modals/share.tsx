@@ -5,7 +5,7 @@
  * route on the server.
  */
 import { toPng } from 'html-to-image';
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { clampWeek, monKey, MONTHS_LONG, todayS, weekOf, WEEKS, weekStart } from '@core/utils/dates';
 import { moneyMonths } from '@core/utils/logic';
 import { useLocalSearchParams } from '@web/lib/router';
@@ -38,13 +38,25 @@ export default function ShareSheet() {
   const [y, m] = month.split('-').map(Number);
   const name = kind === 'week' ? `Week ${week}` : kind === 'month' ? `${MONTHS_LONG[m - 1]} ${y}` : 'The year';
 
-  /** Arrow keys move between the tabs, as in any tab list. */
+  // The card is always 360 × 450; narrow screens show it scaled down.
+  const box = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setScale(Math.min(1, el.clientWidth / 362)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  /** Arrow keys, Home and End move between the tabs, as in any tab list. */
   const onTabsKey = (e: KeyboardEvent) => {
     const i = KINDS.findIndex((k) => k.id === kind);
     const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-    if (!d) return;
+    const to = e.key === 'Home' ? 0 : e.key === 'End' ? KINDS.length - 1 : d ? (i + d + KINDS.length) % KINDS.length : -1;
+    if (to < 0) return;
     e.preventDefault();
-    const next = KINDS[(i + d + KINDS.length) % KINDS.length].id;
+    const next = KINDS[to].id;
     setKind(next);
     requestAnimationFrame(() => document.getElementById(`share-tab-${next}`)?.focus());
   };
@@ -52,11 +64,12 @@ export default function ShareSheet() {
   /** Renders the card at 1080 px wide, then shares it (phones) or downloads it. */
   const save = async () => {
     const node = ref.current;
-    if (!node) return;
+    if (!node || busy) return;
     setBusy(true);
     try {
       await document.fonts?.ready;
-      const url = await toPng(node, { pixelRatio: 1080 / node.offsetWidth, cacheBust: true });
+      // Always 360 × 450 at 3x, whatever the preview's scale on screen.
+      const url = await toPng(node, { width: 360, height: 450, pixelRatio: 3, cacheBust: true });
       const file = kind === 'week' ? `yearwall-week-${week}.png` : kind === 'month' ? `yearwall-${month}.png` : 'yearwall-year.png';
       const blob = await (await fetch(url)).blob();
       const f = new File([blob], file, { type: 'image/png' });
@@ -118,9 +131,11 @@ export default function ShareSheet() {
         </div>
       ) : null}
 
-      <div id="share-preview" role="tabpanel" aria-labelledby={`share-tab-${kind}`} className="share-preview">
-        <div className="share-frame">
-          <div ref={ref}>{kind === 'week' ? <WeekShareCard w={week} o={o} /> : kind === 'month' ? <MonthShareCard ym={month} o={o} /> : <YearShareCard o={o} />}</div>
+      <div id="share-preview" role="tabpanel" aria-labelledby={`share-tab-${kind}`} className="share-preview" ref={box} style={{ height: 452 * scale }}>
+        <div className="share-frame" role="img" aria-label={`Preview of the ${name.toLowerCase()} image`} style={{ transform: `scale(${scale})` }}>
+          <div ref={ref} aria-hidden="true" style={{ width: 360, height: 450 }}>
+            {kind === 'week' ? <WeekShareCard w={week} o={o} /> : kind === 'month' ? <MonthShareCard ym={month} o={o} /> : <YearShareCard o={o} />}
+          </div>
         </div>
       </div>
 
@@ -145,7 +160,8 @@ export default function ShareSheet() {
         </div>
       </fieldset>
 
-      <Btn label={busy ? 'Preparing…' : 'Save image'} icon="download" onPress={save} disabled={busy} />
+      {/* Stays enabled while busy (save() ignores repeat clicks), so focus isn't lost. */}
+      <Btn label={busy ? 'Preparing…' : 'Save image'} icon="download" onPress={save} />
       <p className="hc-line" style={{ textAlign: 'center' }}>
         Saved at 1080 × 1350, the portrait size Instagram uses. Categories hidden on the board stay out of the image. A view-only link is coming later.
       </p>

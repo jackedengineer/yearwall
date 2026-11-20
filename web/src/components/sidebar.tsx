@@ -39,30 +39,31 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   useStore();
   const t = todayS();
   const list = S.meta.habits.filter((h) => isActive(h, t));
-  if (collapsed)
-    return (
-      <aside className="sidebar" aria-label="Today's habits">
+  // One toggle button in the same place in both states, so focus stays on it when it's pressed.
+  const toggle = (
+    <button type="button" className="icon-btn side-toggle" aria-label={collapsed ? "Show today's habits" : "Hide today's habits"} aria-expanded={!collapsed} onClick={onToggle}>
+      <Feather name={collapsed ? 'chevrons-right' : 'chevrons-left'} size={18} />
+    </button>
+  );
+  return (
+    <aside className={collapsed ? 'sidebar collapsed' : 'sidebar'} aria-label="Today's habits">
+      <div className="side-head">
+        {toggle}
+        {collapsed ? null : <span className="side-title">Habits today, {fmt(t, { wd: true })}</span>}
+      </div>
+      {collapsed ? (
         <div className="rail">
-          <button type="button" className="icon-btn" aria-label="Show today's habits" aria-expanded="false" onClick={onToggle}>
-            <Feather name="chevrons-right" size={18} />
-          </button>
           {list.map((h) => (
             <span key={h.id} style={colorVars(h)} title={h.name}>
               <Ring h={h} d={t} size={40} />
             </span>
           ))}
         </div>
-      </aside>
-    );
-  return (
-    <aside className="sidebar" aria-label="Today's habits">
-      <div className="side-head">
-        <span className="side-title">Habits today, {fmt(t, { wd: true })}</span>
-        <button type="button" className="icon-btn" aria-label="Hide today's habits" aria-expanded="true" onClick={onToggle}>
-          <Feather name="chevrons-left" size={18} />
-        </button>
-      </div>
-      {list.length ? <HabitCards d={t} compact /> : <p className="hc-line">No habits are scheduled today.</p>}
+      ) : list.length ? (
+        <HabitCards d={t} compact />
+      ) : (
+        <p className="hc-line">No habits are scheduled today.</p>
+      )}
     </aside>
   );
 }

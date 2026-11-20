@@ -20,6 +20,12 @@ const card: CSSProperties = { width: 360, height: 450, background: C.bg, padding
 const small = (size: number, color: string = C.mut, weight = 600): CSSProperties => ({ fontSize: size, color, fontWeight: weight, lineHeight: 1.3 });
 
 const visiblePlans = (list: Plan[]) => list.filter((p) => !UI.hideCats.has(p.cat));
+/** Text colour that reads on a day's fill: dark on light fills, light on dark ones. */
+function ink(bg: string) {
+  const n = parseInt(bg.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.45 ? C.bg : C.tx;
+}
 /** The colour of a day: habit progress (greys to white), or the category of its plan. */
 function dayColor(d: string, o: ShareOptions, t: string) {
   if (d < YEAR_START || d > YEAR_END) return '#100F0E';
@@ -157,7 +163,7 @@ export function MonthShareCard({ ym, o }: { ym: string; o: ShareOptions }) {
         {rows.flat().map((d, i) =>
           d ? (
             <span key={d} style={{ position: 'relative', height: 30, borderRadius: 6, background: dayColor(d, o, t), border: d === t ? `1.5px solid ${C.lit}` : 'none', boxSizing: 'border-box' }}>
-              <span style={{ position: 'absolute', top: 3, left: 5, ...small(8, o.by === 'habits' && barColor(d, t) === '#ECE8E2' ? C.bg : C.tx2) }}>{pd(d).getDate()}</span>
+              <span style={{ position: 'absolute', top: 3, left: 5, ...small(8, ink(dayColor(d, o, t))) }}>{pd(d).getDate()}</span>
             </span>
           ) : (
             <span key={`x${i}`} />

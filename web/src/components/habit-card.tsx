@@ -5,15 +5,14 @@
  * The ··· menu has Edit, Archive and Delete.
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { S } from '@core/data/state';
+import { S, UI } from '@core/data/state';
 import type { Habit } from '@core/data/types';
-import { DOW, fmt, todayS } from '@core/utils/dates';
+import { clampWeek, DOW, fmt, todayS, weekOf } from '@core/utils/dates';
 import { doneOn, isActive, streak, targetOn, valueOn } from '@core/utils/logic';
-import { habitColor, progressLine, weekStrip, type DayState } from '@core/utils/progress';
+import { habitColor, isRunning, progressLine, weekStrip, type DayState } from '@core/utils/progress';
 import Feather from '@web/lib/icons';
 import { router } from '@web/lib/router';
 import { setSpotlight } from '@web/lib/view-state';
-import { UI } from '@core/data/state';
 import { archiveHabit, deleteHabit, logHabit } from './habit-actions';
 
 const STATE_WORDS: Record<DayState, string> = {
@@ -39,11 +38,12 @@ export function Ring({ h, d, size = 44 }: { h: Habit; d: string; size?: number }
   const future = d > todayS();
   const auto = h.auto === 'journal';
   const when = d === todayS() ? 'today' : fmt(d, { wd: true });
+  // Check habits keep one label and say on/off with aria-pressed.
   const label = auto
-    ? `${h.name}: ${done ? 'done' : 'not done'} ${when}. Write the log to tick it.`
+    ? `${h.name} for ${when}, ${done ? 'done' : 'not done'}: ticks itself when you write the log. Opens the log.`
     : h.type === 'minutes'
       ? `Add ${h.step || 1} minutes of ${h.name} for ${when}, ${val} of ${tgt} so far`
-      : `${done ? 'Unlog' : 'Log'} ${h.name} for ${when}`;
+      : `Log ${h.name} for ${when}`;
   const r = size / 2 - 3;
   const circ = 2 * Math.PI * r;
   const frac = Math.min(1, val / tgt);
@@ -74,8 +74,9 @@ export function Ring({ h, d, size = 44 }: { h: Habit; d: string; size?: number }
   );
 }
 
+/** The week holding `d`, judged against the real today (so past days never show as "coming up"). */
 export function WeekStrip({ h, d }: { h: Habit; d: string }) {
-  const days = weekStrip(h, d);
+  const days = weekStrip(h, todayS(), clampWeek(weekOf(d)));
   const summary = days.map((x, i) => `${DOW[i]} ${STATE_WORDS[x.state]}`).join(', ');
   return (
     <div className="strip" role="img" aria-label={`This week: ${summary}`}>
@@ -109,8 +110,18 @@ export function SpotlightButton({ h, tour }: { h: Habit; tour?: boolean }) {
 
 function Menu({ h }: { h: Habit }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<CSSProperties>({});
   const btn = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
+  const toggle = () => {
+    // Fixed position, so a scrolling sidebar can't clip it; opens upward near the bottom.
+    const r = btn.current?.getBoundingClientRect();
+    if (r) {
+      const up = r.bottom + 150 > window.innerHeight;
+      setPos({ position: 'fixed', right: Math.max(8, window.innerWidth - r.right), ...(up ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }) });
+    }
+    setOpen((v) => !v);
+  };
   useEffect(() => {
     if (!open) return;
     list.current?.querySelector<HTMLElement>('[role=menuitem]')?.focus();
@@ -127,6 +138,9 @@ function Menu({ h }: { h: Habit }) {
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
+      } else if (e.key === 'Home' || e.key === 'End') {
+        e.preventDefault();
+        items[e.key === 'Home' ? 0 : items.length - 1]?.focus();
       } else if (e.key === 'Tab') setOpen(false);
     };
     document.addEventListener('mousedown', onDown);
@@ -136,24 +150,28 @@ function Menu({ h }: { h: Habit }) {
       window.removeEventListener('keydown', onKey, true);
     };
   }, [open]);
+  // Close, put focus back on ···, then act (so dialogs and toasts return focus there).
   const pick = (fn: () => void) => () => {
     setOpen(false);
+    btn.current?.focus();
     fn();
   };
   return (
     <div className="menu-wrap">
-      <button ref={btn} type="button" className="icon-btn" aria-label={`More for ${h.name}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+      <button ref={btn} type="button" className="icon-btn" aria-label={`More for ${h.name}`} aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
         <Feather name="more-horizontal" size={18} />
       </button>
       {open ? (
-        <div ref={list} className="menu" role="menu" aria-label={h.name}>
+        <div ref={list} className="menu" role="menu" aria-label={h.name} style={pos}>
           <button type="button" role="menuitem" onClick={pick(() => router.push({ pathname: '/habit/[id]', params: { id: h.id } }))}>
             <Feather name="edit-2" size={15} /> Edit
           </button>
-          <button type="button" role="menuitem" onClick={pick(() => archiveHabit(h))}>
-            <Feather name="archive" size={15} /> Archive
-          </button>
-          <button type="button" role="menuitem" className="danger" onClick={pick(() => void deleteHabit(h))}>
+          {isRunning(h) ? (
+            <button type="button" role="menuitem" onClick={pick(() => archiveHabit(h))}>
+              <Feather name="archive" size={15} /> Archive
+            </button>
+          ) : null}
+          <button type="button" role="menuitem" className="danger" onClick={pick(() => void deleteHabit(h, btn.current))}>
             <Feather name="trash-2" size={15} /> Delete
           </button>
         </div>
@@ -174,7 +192,7 @@ export function HabitCard({ h, d, first }: { h: Habit; d: string; first?: boolea
         <div className="hc-top">
           <span className="hc-name">{h.name}</span>
           {st.n > 0 ? (
-            <span className="hc-streak" title={`${st.n}-${st.unit} streak`} aria-label={`${st.n}-${st.unit} streak`}>
+            <span className="hc-streak" role="img" title={`${st.n}-${st.unit} streak`} aria-label={`${st.n}-${st.unit} streak`}>
               <Feather name="flame" size={13} />
               {st.n}
               {st.unit === 'week' ? 'w' : ''}

@@ -95,8 +95,10 @@ export function logMessage(h: Habit, d: string, before: number, after: number, r
   if (after <= 0) return `${h.name} unlogged${when}.`;
   if (h.type === 'minutes' && after < target) return `${h.name}: ${after} of ${target} min${d === ref ? ' today' : when}.`;
   if (h.type === 'minutes' && before >= target) return `${h.name}: ${after} min${d === ref ? ' today' : when}.`;
-  const p = weekProgress(h, d < ref ? ref : d, clampWeek(weekOf(d)));
-  const week = p.target === 0 ? '' : p.left > 0 ? ` ${p.done} of ${p.target} this week, ${p.left} to go.` : ` ${p.done} of ${p.target} this week. Week done.`;
+  const w = clampWeek(weekOf(d));
+  const p = weekProgress(h, d < ref ? ref : d, w);
+  const which = w < clampWeek(weekOf(ref)) ? 'that week' : 'this week';
+  const week = p.target === 0 ? '' : p.left > 0 ? ` ${p.done} of ${p.target} ${which}, ${p.left} to go.` : ` ${p.done} of ${p.target} ${which}. Week done.`;
   return `${h.name} logged${when}.${week}`;
 }
 
@@ -189,6 +191,9 @@ export function monthGrid(ym: string): (string | null)[][] {
 
 /* ---------- plan outcomes ---------- */
 
+/** Habits that are running: started, and not archived or ended. Archive applies only to these. */
+export const isRunning = (h: Habit, ref = todayS()) => h.activeFrom <= ref && (!h.activeTo || h.activeTo >= ref);
+
 /** A plan whose last day has passed and nobody has said whether it happened. */
 export const needsOutcome = (p: Plan, ref = todayS()) => (p.end || p.start) < ref && !p.outcome;
 
@@ -220,11 +225,36 @@ export function goalItems(g: Goal | undefined, q: GoalKey): GoalItem[] {
   if (!g) return [];
   const lines = goalLines(g.text);
   const items = Array.isArray(g.items) ? g.items.filter((i) => i && typeof i.text === 'string' && i.text.trim()) : null;
-  if (items && items.map((i) => i.text.trim()).join('\n') === lines.join('\n')) return items.slice(0, MAX_GOALS);
+  if (items && items.map((i) => i.text.trim()).join('\n') === lines.join('\n')) {
+    const list = items.slice(0, MAX_GOALS);
+    // An older client ticked or unticked the whole quarter ("Mark done"): apply it to every goal.
+    const allDone = list.length > 0 && list.every((i) => i.done);
+    return typeof g.done === 'boolean' && g.done !== allDone ? list.map((i) => ({ ...i, done: g.done })) : list;
+  }
   if (!lines.length) return [];
   // Old text, or text changed by an older client. Lines past the 5th stay together in the 5th item.
+  // Each existing goal is reused at most once (keeping its tick), and new ids never repeat one in use.
   const kept = [...lines.slice(0, MAX_GOALS - 1), lines.slice(MAX_GOALS - 1).join('\n')].filter(Boolean);
-  return kept.map((text, n) => items?.find((i) => i.text.trim() === text) ?? { id: `${q}-${n + 1}`, text, done: !!g.done });
+  const used = new Set<GoalItem>();
+  const ids = new Set((items || []).map((i) => i.id));
+  let n = 0;
+  const freshId = () => {
+    let id = '';
+    do id = `${q}-${++n}`;
+    while (ids.has(id));
+    ids.add(id);
+    return id;
+  };
+  const rebuilt = kept.map((text) => {
+    const same = items?.find((i) => !used.has(i) && i.text.trim() === text);
+    if (same) {
+      used.add(same);
+      return same;
+    }
+    return { id: freshId(), text, done: !!g.done };
+  });
+  // An older client marked the whole quarter done.
+  return g.done === true ? rebuilt.map((i) => (i.done ? i : { ...i, done: true })) : rebuilt;
 }
 
 /** The goal record for a checklist: items plus text/done for older clients. */

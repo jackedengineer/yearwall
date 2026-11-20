@@ -2,7 +2,7 @@
 import Feather from '@web/lib/icons';
 import { router } from '@web/lib/router';
 import { Pressable, View } from '@web/lib/rn';
-import { Bar, Card, Empty, Screen, Section, T } from '@web/ui';
+import { Bar, Card, Empty, PageTitle, Screen, Section, T } from '@web/ui';
 import { SOURCES, SRC } from '@core/constants';
 import { commit, S, UI } from '@core/data/state';
 import { useStore } from '@web/lib/use-store';
@@ -30,9 +30,7 @@ export function Money() {
   return (
     <Screen>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <T w={700} s={28} style={{ lineHeight: 34 }}>
-          Money
-        </T>
+        <PageTitle>Money</PageTitle>
         <Pressable
           onPress={() => router.push({ pathname: '/income/[id]', params: { id: 'new' } })}
           accessibilityRole="button"

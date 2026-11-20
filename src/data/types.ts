@@ -9,6 +9,8 @@ export type Settings = {
   weeklyPostTarget: number;
   tourDone: boolean;
   day0: string;
+  /** Version of the tour last seen (2 = the coach-mark tour). Older apps keep this key untouched. */
+  tourSeen?: number;
 };
 
 export type Test = {
@@ -49,8 +51,9 @@ export type Habit = {
   color?: HabitColor;
 };
 
-/** outcome: set once a plan's dates have passed ("Did it happen?"). Missing means not answered yet. */
-export type Plan = { id: string; title: string; start: string; end: string; cat: CatId; milestone?: boolean; outcome?: 'done' | 'missed' };
+/** outcome: set once a plan's dates have passed ("Did it happen?"). Missing or null means not answered yet;
+ *  clearing an answer writes null so the server removes it (it merges fields; see web/worker/sync-db.ts). */
+export type Plan = { id: string; title: string; start: string; end: string; cat: CatId; milestone?: boolean; outcome?: 'done' | 'missed' | null };
 
 export type WeekInfo = { focus?: string; notes?: string };
 export type GoalItem = { id: string; text: string; done: boolean };

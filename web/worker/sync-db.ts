@@ -34,12 +34,20 @@ export const SCHEMA = [
 
 // One statement for the whole push: the records arrive as one JSON array.
 // A record only replaces the stored one if it was edited later (last write wins).
+// Fields are merged (JSON merge patch): fields the push has replace the stored ones,
+// fields it leaves out keep their stored values, and a field sent as null is removed.
+// Older apps don't know newer fields (a habit's colour, a plan's outcome, a goal
+// checklist), so this keeps them from erasing those fields when they save a record.
+// A deletion (data null) or a record that was deleted before is stored as sent.
 const UPSERT = `
 INSERT INTO records (kind, id, data, updated_at, rev)
 SELECT json_extract(value, '$.k'), json_extract(value, '$.i'), json_extract(value, '$.d'), json_extract(value, '$.u'),
        (SELECT value FROM counter WHERE name = 'rev')
 FROM json_each(?) WHERE true
-ON CONFLICT (kind, id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, rev = excluded.rev
+ON CONFLICT (kind, id) DO UPDATE SET
+  data = CASE WHEN excluded.data IS NULL OR records.data IS NULL THEN excluded.data ELSE json_patch(records.data, excluded.data) END,
+  updated_at = excluded.updated_at,
+  rev = excluded.rev
 WHERE excluded.updated_at > records.updated_at`;
 
 export class BadRequest extends Error {}

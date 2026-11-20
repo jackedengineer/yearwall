@@ -32,13 +32,26 @@ export function GoalCard({ q }: { q: 1 | 2 | 3 | 4 }) {
     requestAnimationFrame(() => input.current?.focus());
   };
   const remove = (g: GoalItem) => {
-    const before = items;
+    const at = items.findIndex((x) => x.id === g.id);
     save(items.filter((x) => x.id !== g.id));
-    toast({ message: `Removed "${g.text}".`, undo: () => save(before) });
+    // Undo puts back just this goal, at its place in whatever the list is by then.
+    toast({
+      message: `Removed "${g.text}".`,
+      undo: () => {
+        const now = goalItems(S.meta.goals[key], key);
+        if (now.some((x) => x.id === g.id) || now.length >= MAX_GOALS) return;
+        save([...now.slice(0, at), g, ...now.slice(at)]);
+      },
+    });
+    // Focus the next goal, else the previous one, else the field.
+    requestAnimationFrame(() => {
+      const ticks = [...document.querySelectorAll<HTMLElement>(`#goals-card-${q} .goal-tick`)];
+      (ticks[at] ?? ticks[at - 1] ?? input.current)?.focus();
+    });
   };
 
   return (
-    <section className={`goals${now ? ' now' : ''}`} aria-labelledby={`goals-${q}`}>
+    <section id={`goals-card-${q}`} className={`goals${now ? ' now' : ''}`} aria-labelledby={`goals-${q}`}>
       <header className="goals-head">
         <h3 id={`goals-${q}`}>
           Q{q} goals{' '}

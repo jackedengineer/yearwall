@@ -3,7 +3,7 @@ import * as Haptics from '@web/lib/haptics';
 import { router } from '@web/lib/router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from '@web/lib/rn';
-import { Banner, Card, Chip, Empty, Field, IconBtn, Screen, Section, Sep, T } from '@web/ui';
+import { Banner, Card, Chip, Empty, Field, IconBtn, PageTitle, Screen, Section, Sep, T } from '@web/ui';
 import { HabitCards } from '@web/components/habit-card';
 import { PlanOutcome, PlansToAnswer } from '@web/components/plan-outcome';
 import { CAT, STATUS_COLOR } from '@core/constants';
@@ -204,9 +204,7 @@ export function Today() {
             </T>
             <IconBtn name="chevron-right" label="Next day" size={32} iconSize={16} disabled={d >= t} onPress={() => setDay(addD(d, 1))} />
           </View>
-          <T w={700} s={30} style={{ letterSpacing: -0.6, lineHeight: 38 }}>
-            {big}
-          </T>
+          <PageTitle>{big}</PageTitle>
         </View>
         <IconBtn name="settings" label="Settings" onPress={() => router.push('/settings')} />
       </View>
@@ -239,6 +237,7 @@ export function Today() {
               <Pressable style={row.item} onPress={() => router.push({ pathname: '/plan/[id]', params: { id: p.id } })}>
                 <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: CAT[p.cat]?.color ?? C.mut }} />
                 <T s={14} style={{ flex: 1 }}>
+                  <span className="sr-only">{CAT[p.cat]?.name}: </span>
                   {p.title}
                 </T>
                 <T s={12} c={C.mut}>

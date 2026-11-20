@@ -206,7 +206,8 @@ function Shell() {
       startTour();
       return;
     }
-    if (!S.meta.settings.tourDone && !Modal) {
+    // Show the tour once to everyone who hasn't seen this version (the old intro set tourDone only).
+    if ((S.meta.settings.tourSeen ?? 0) < 2 && !Modal) {
       const t = setTimeout(startTour, 400);
       return () => clearTimeout(t);
     }
@@ -233,6 +234,21 @@ function Shell() {
     document.body.classList.toggle('locked', !!Modal && !drawer);
   }, [Modal, drawer]);
 
+  // After moving to another tab, start keyboard and screen-reader users at its title.
+  const firstTab = useRef(true);
+  useEffect(() => {
+    if (firstTab.current) {
+      firstTab.current = false;
+      return;
+    }
+    requestAnimationFrame(() => {
+      const a = document.activeElement;
+      if (!a || a === document.body || !a.isConnected || a.closest('nav.tabs')) document.getElementById('page-title')?.focus({ preventScroll: true });
+    });
+  }, [tab]);
+  // A dialog (not the drawer) makes the page behind it inert, so Tab stays inside.
+  const inert = !!Modal && !drawer;
+
   useEffect(() => {
     document.title = Modal ? 'Year Wall' : `${PAGES[tab].title} · Year Wall`;
   }, [tab, Modal]);
@@ -241,7 +257,10 @@ function Shell() {
   const side = tab !== '/';
   return (
     <>
-      <nav className={side ? 'tabs wide' : 'tabs'} aria-label="Sections">
+      <a className="skip" href="#main">
+        Skip to content
+      </a>
+      <nav className={side ? 'tabs wide' : 'tabs'} aria-label="Sections" inert={inert}>
         <span className="brand small">Year Wall</span>
         {TABS.map((p) => (
           <a
@@ -259,16 +278,16 @@ function Shell() {
           </a>
         ))}
       </nav>
-      <div className={`layout${side ? ' side' : ''}${side && collapsed ? ' collapsed' : ''}`}>
+      <div className={`layout${side ? ' side' : ''}${side && collapsed ? ' collapsed' : ''}`} inert={inert}>
         {side ? <Sidebar collapsed={collapsed} onToggle={toggleSidebar} /> : null}
-        <div className="page">
+        <div className="page" id="main" tabIndex={-1}>
           <Page />
         </div>
       </div>
       {Modal && drawer ? (
-        <aside className={`drawer ${drawerSide}`} role="dialog" aria-modal="false" aria-labelledby="modal-title">
+        <div className={`drawer ${drawerSide}`} role="dialog" aria-modal="false" aria-labelledby="modal-title">
           <Modal />
-        </aside>
+        </div>
       ) : Modal ? (
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && router.back()}>
           <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">

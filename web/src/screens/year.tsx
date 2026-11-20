@@ -12,24 +12,28 @@ import { colorVars } from '@web/components/habit-card';
 import { GoalCard } from '@web/components/goals';
 import { startTour } from '@web/components/tour';
 import type { Habit } from '@core/data/types';
-import { Chip, Screen, Section, T } from '@web/ui';
+import { Chip, PageTitle, Screen, Section, T } from '@web/ui';
 import { CATS } from '@core/constants';
 import { commit, S, UI } from '@core/data/state';
 import { useStore } from '@web/lib/use-store';
 import { C } from '@web/lib/theme';
 import { clampWeek, dowI, ds, fmt, fmtRange, MONTHS, pd, plural, todayS, weekDays, weekOf, YEAR_END, YEAR_START } from '@core/utils/dates';
-import { barColor, capOn, chapterLabelForMonth, isPerfect, monthsOfYear, yearStats } from '@core/utils/logic';
+import { barColor, capOn, chapterLabelForMonth, dayScore, isPerfect, monthsOfYear, yearStats } from '@core/utils/logic';
 
-const WeekCard = memo(function WeekCard({ w, now, perfect, bars, spot }: { w: number; now: boolean; perfect: boolean; bars: { date: string; color: string; cap: string | null; today: boolean }[]; spot?: string }) {
+const WeekCard = memo(function WeekCard({ w, now, perfect, bars, spot, spotName }: { w: number; now: boolean; perfect: boolean; bars: { date: string; color: string; cap: string | null; today: boolean }[]; spot?: string; spotName?: string }) {
   const days = weekDays(w);
   const focus = S.meta.weeks[String(w)]?.focus;
   const nPlans = plansInWeek(w).length;
+  // Text for what the bars show: days with every habit done (or the spotlighted habit's count).
+  const t = todayS();
+  const full = days.filter((d) => d <= t && dayScore(d) === 1).length;
+  const barsText = spot ? `${spotName} ${spot.replace('/', ' of ')} days` : days[0] <= t ? `${plural(full, 'day')} with every habit done` : '';
   return (
     <Pressable
       nativeID={`wk-${w}`}
       onPress={() => openWeek(w)}
       accessibilityRole="button"
-      accessibilityLabel={`Open week ${w}, ${fmtRange(days[0], days[6])}, ${plural(nPlans, 'plan')}${focus ? `, ${focus}` : ''}${perfect ? ', perfect week' : ''}`}
+      accessibilityLabel={`W${w}, open week ${w}, ${fmtRange(days[0], days[6])}, ${plural(nPlans, 'plan')}${focus ? `, ${focus}` : ''}${perfect ? ', perfect week' : ''}${barsText ? `, ${barsText}` : ''}`}
       style={({ pressed }) => [s.wk, now && s.wkNow, perfect && (now ? s.wkNowPerfect : s.wkPerfect), pressed && { opacity: 0.7 }]}
     >
       <View style={s.wl}>
@@ -84,7 +88,7 @@ function WeeksBoard({ spot }: { spot: Habit | null }) {
               const label = spot ? (p && p.target ? `${p.done}/${p.target}` : '') : undefined;
               return (
                 <View key={i} style={{ flex: 1 }}>
-                  <WeekCard w={w} now={w === cw} perfect={!spot && w <= cw && isPerfect(w, t)} bars={bars} spot={label} />
+                  <WeekCard w={w} now={w === cw} perfect={!spot && w <= cw && isPerfect(w, t)} bars={bars} spot={label} spotName={spot?.name} />
                 </View>
               );
             })}
@@ -202,9 +206,7 @@ export function Year() {
   return (
     <Screen>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-        <T w={700} s={24} style={{ flexShrink: 1, lineHeight: 30 }}>
-          Year Wall
-        </T>
+        <PageTitle small>Year Wall</PageTitle>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Chip label="How it works" onPress={startTour} />
           <span id="tour-share">

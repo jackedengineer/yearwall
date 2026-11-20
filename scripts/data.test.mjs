@@ -253,6 +253,8 @@ test('one tap logs a habit, and the toast says what happened', () => {
   assert.equal(prog.logMessage(teach, '2026-11-27', 0, 1, '2026-11-27'), 'Teach one thing in public logged. 5 of 5 this week. Week done.');
   // The nightly log ticks itself from the journal.
   assert.equal(store.actions.tick(H('h_log'), d), null);
+  // A day in an earlier week says "that week".
+  assert.equal(prog.logMessage(teach, '2026-11-21', 0, 1, d), 'Teach one thing in public logged for Sat, Nov 21. 3 of 3 that week. Week done.');
 });
 
 /* ---------- plans, goals, year ---------- */
@@ -265,8 +267,10 @@ test('plan outcomes', () => {
   assert.equal(plan('pl1').outcome, 'done');
   assert.equal(prog.needsOutcome(plan('pl1'), ref), false);
   assert.equal(records.readRecord('plan', 'pl1').outcome, 'done'); // it syncs
-  store.actions.setPlanOutcome('pl1', null); // Undo
-  assert.equal('outcome' in plan('pl1'), false);
+  store.actions.setPlanOutcome('pl1', null); // Undo writes null, so the server clears it
+  assert.equal(plan('pl1').outcome, null);
+  assert.equal(records.readRecord('plan', 'pl1').outcome, null);
+  assert.equal(prog.needsOutcome(plan('pl1'), ref), true);
   store.actions.setPlanOutcome('pl1', 'missed');
   assert.equal(plan('pl1').outcome, 'missed');
   // Removing a plan hands it back, so Undo can restore it.
@@ -310,7 +314,7 @@ test('goal items and the migration from text', () => {
   assert.deepEqual(records.readRecord('goal', 'q1'), g); // it syncs
   // An older client edited the text: the checklist follows it and keeps ticks on unchanged lines.
   const edited = { ...g, text: 'Launch the tracker\nShip the gateway\nWrite the recap' };
-  assert.deepEqual(prog.goalItems(edited, 'q1'), [g.items[0], g.items[1], { id: 'q1-3', text: 'Write the recap', done: false }]);
+  assert.deepEqual(prog.goalItems(edited, 'q1'), [g.items[0], g.items[1], { id: 'q1-1', text: 'Write the recap', done: false }]);
   // At most 5: extra lines stay together in the fifth, so nothing is lost.
   assert.deepEqual(
     prog.goalItems({ text: 'a\nb\nc\nd\ne\nf', done: false }, 'q2').map((i) => i.text),
@@ -318,11 +322,45 @@ test('goal items and the migration from text', () => {
   );
   store.actions.saveGoalItems(2, ['1', '2', '3', '4', '5', '6'].map((t) => ({ id: 'x' + t, text: t, done: false })));
   assert.equal(S.meta.goals.q2.items.length, 5);
+  // "Mark done" from an older client (done flips, text unchanged) applies to every goal.
+  assert.deepEqual(
+    prog.goalItems({ ...g, done: true }, 'q1').map((i) => i.done),
+    [true, true],
+  );
+  assert.deepEqual(
+    prog.goalItems({ ...g, items: g.items.map((i) => ({ ...i, done: true })), done: false }, 'q1').map((i) => i.done),
+    [false, false],
+  );
+  // Rebuilt goals never reuse an id, and identical lines stay separate goals.
+  const ids = prog.goalItems({ text: 'a\nb\na', done: false, items: [{ id: 'q1-2', text: 'a', done: true }] }, 'q1');
+  assert.deepEqual(
+    ids.map((i) => i.text),
+    ['a', 'b', 'a'],
+  );
+  assert.equal(new Set(ids.map((i) => i.id)).size, 3);
+  assert.deepEqual(
+    ids.map((i) => i.done),
+    [true, false, false],
+  );
   // Every item done marks the quarter done for older clients.
   store.actions.saveGoalItems(1, g.items.map((i) => ({ ...i, done: true })));
   assert.equal(S.meta.goals.q1.done, true);
   // The phone (schema v2) keeps the text, so its goals still show.
   assert.equal(repo.loadAll().meta.goals.q1.text, 'Launch the tracker\nShip the gateway');
+});
+
+test('archiving keeps history and never moves an earlier end date', () => {
+  const t = new Date();
+  const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  const ended = { ...H('h_books'), id: 'h_ended', activeFrom: '2026-11-16', activeTo: '2026-11-17' };
+  store.actions.saveHabit(ended);
+  store.actions.archiveHabit('h_ended');
+  assert.equal(H('h_ended').activeTo, '2026-11-17'); // already ended: unchanged
+  store.actions.saveHabit({ ...ended, activeTo: null });
+  store.actions.archiveHabit('h_ended');
+  assert.ok(H('h_ended').activeTo < today); // ends yesterday
+  assert.equal(prog.isRunning(H('h_ended'), today), false);
+  store.actions.deleteHabit('h_ended');
 });
 
 test('year progress, perfect-week runs and quarters', () => {
@@ -593,21 +631,51 @@ await atest('an old phone and the new web app editing the same habit, plan and g
   await A.engine.syncNow();
   assert.equal((await serverRec('habit', 'h_teach')).d.color, 'pink');
   assert.equal((await serverRec('plan', 'pl1')).d.outcome, 'done');
-  // If it edits the habit, the colour is lost and the web app falls back to the habit's default.
-  // (Known risk until the phone ships schema v3.)
+  // When it edits the habit and the plan, it sends them without the new fields. The server merges
+  // fields, so the colour and the answer survive, and the edit itself goes through.
   store.actions.saveHabit({ ...H('h_teach'), name: 'Teach one thing' });
+  store.actions.savePlan({ ...plan('pl1'), title: 'Day 0: explain a design on camera' });
   await A.engine.syncNow();
   const teach = (await serverRec('habit', 'h_teach')).d;
   assert.equal(teach.name, 'Teach one thing');
-  assert.equal(teach.color, undefined);
-  assert.equal(prog.habitColorId(teach, S.meta.habits), theme.HABIT_COLOR_IDS[S.meta.habits.findIndex((h) => h.id === 'h_teach')]);
-  // If it edits the goals as text, the web app rebuilds the checklist from it: every goal is kept.
+  assert.equal(teach.color, 'pink');
+  const p1 = (await serverRec('plan', 'pl1')).d;
+  assert.equal(p1.title, 'Day 0: explain a design on camera');
+  assert.equal(p1.outcome, 'done');
+  // Deleting a habit re-saves (and re-sends) every other habit on the old phone; their colours survive too.
+  await otherDevice([{ k: 'habit', i: 'h_books', u: Date.now() + 40000, d: { ...H('h_books'), sort: 3, color: 'amber' } }]);
+  await A.engine.syncNow();
+  store.initStore(A.pdb); // another restart: the colour isn't in its SQLite
+  A = wire(A.pdb);
+  store.actions.deleteHabit('h_yoga');
+  await A.engine.syncNow();
+  assert.equal((await serverRec('habit', 'h_books')).d.color, 'amber');
+  assert.equal((await serverRec('habit', 'h_teach')).d.color, 'pink');
+  // Tapping in and out of the goal box re-sends the same text: the ticks survive.
+  store.actions.saveGoal(1, { text: 'Launch the tracker\nShip the gateway' }, true);
+  await A.engine.syncNow();
+  assert.deepEqual(
+    prog.goalItems((await serverRec('goal', 'q1')).d, 'q1').map((i) => [i.text, i.done]),
+    [
+      ['Launch the tracker', true],
+      ['Ship the gateway', false],
+    ],
+  );
+  // Adding a line on the old phone keeps the ticks on the lines that didn't change.
   store.actions.saveGoal(1, { text: 'Launch the tracker\nShip the gateway\nWrite the recap' });
   await A.engine.syncNow();
   assert.deepEqual(
-    prog.goalItems((await serverRec('goal', 'q1')).d, 'q1').map((i) => i.text),
-    ['Launch the tracker', 'Ship the gateway', 'Write the recap'],
+    prog.goalItems((await serverRec('goal', 'q1')).d, 'q1').map((i) => [i.text, i.done]),
+    [
+      ['Launch the tracker', true],
+      ['Ship the gateway', false],
+      ['Write the recap', false],
+    ],
   );
+  // "Mark done" on the old phone ticks every goal.
+  store.actions.saveGoal(1, { done: true });
+  await A.engine.syncNow();
+  assert.ok(prog.goalItems((await serverRec('goal', 'q1')).d, 'q1').every((i) => i.done));
 });
 
 await atest('a wrong sync key is reported, and nothing is lost', async () => {
@@ -666,6 +734,27 @@ await atest('changing the server address keeps unsent edits and re-sends everyth
   assert.equal(fresh.dirty().length, 0);
   assert.equal((await serverRec('week', '9')).d.focus, 'edited just before switching');
   assert.equal(S.meta.weeks['9'].focus, 'edited just before switching');
+});
+
+await atest('the server merges fields: left out keeps, null clears, deletes stay deletes', async () => {
+  const u = Date.now() + 60000;
+  await otherDevice([{ k: 'plan', i: 'plm', u, d: { id: 'plm', title: 'Merge', start: '2027-01-02', end: '2027-01-02', cat: 'work', outcome: 'done' } }]);
+  await otherDevice([{ k: 'plan', i: 'plm', u: u + 1, d: { id: 'plm', title: 'Merge 2', start: '2027-01-02', end: '2027-01-02', cat: 'work' } }]);
+  assert.deepEqual((await serverRec('plan', 'plm')).d, { id: 'plm', title: 'Merge 2', start: '2027-01-02', end: '2027-01-02', cat: 'work', outcome: 'done' });
+  await otherDevice([{ k: 'plan', i: 'plm', u: u + 2, d: { id: 'plm', title: 'Merge 2', start: '2027-01-02', end: '2027-01-02', cat: 'work', outcome: null } }]);
+  assert.equal('outcome' in (await serverRec('plan', 'plm')).d, false);
+  // Arrays are replaced, not merged.
+  await otherDevice([{ k: 'goal', i: 'q4', u, d: { text: 'a\nb', done: false, items: [{ id: 'x', text: 'a', done: false }, { id: 'y', text: 'b', done: false }] } }]);
+  await otherDevice([{ k: 'goal', i: 'q4', u: u + 1, d: { text: 'a', done: false, items: [{ id: 'x', text: 'a', done: true }] } }]);
+  assert.deepEqual((await serverRec('goal', 'q4')).d.items, [{ id: 'x', text: 'a', done: true }]);
+  // A deletion is a deletion, and a record created again starts fresh.
+  await otherDevice([{ k: 'plan', i: 'plm', u: u + 3, d: null }]);
+  assert.equal((await serverRec('plan', 'plm')).d, null);
+  await otherDevice([{ k: 'plan', i: 'plm', u: u + 4, d: { id: 'plm', title: 'Again', start: '2027-01-03', end: '2027-01-03', cat: 'work' } }]);
+  assert.equal('outcome' in (await serverRec('plan', 'plm')).d, false);
+  // An older edit still loses.
+  await otherDevice([{ k: 'plan', i: 'plm', u: 1, d: { id: 'plm', title: 'Stale', start: '2027-01-03', end: '2027-01-03', cat: 'work' } }]);
+  assert.equal((await serverRec('plan', 'plm')).d.title, 'Again');
 });
 
 await atest('the server rejects bad records', async () => {
