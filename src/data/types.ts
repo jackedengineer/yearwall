@@ -1,5 +1,7 @@
 export type CatId = 'work' | 'learning' | 'health' | 'travel' | 'personal';
 export type SourceId = 'freelance' | 'coaching' | 'app' | 'brand' | 'other';
+/** Each habit's own colour. Habits saved before colours existed get one from their position (see habitColorId). */
+export type HabitColor = 'green' | 'violet' | 'blue' | 'amber' | 'pink' | 'teal';
 
 export type Settings = {
   currency: string;
@@ -44,12 +46,17 @@ export type Habit = {
   activeFrom: string;
   activeTo: string | null;
   pauses: { from: string; to: string }[];
+  color?: HabitColor;
 };
 
-export type Plan = { id: string; title: string; start: string; end: string; cat: CatId; milestone?: boolean };
+/** outcome: set once a plan's dates have passed ("Did it happen?"). Missing means not answered yet. */
+export type Plan = { id: string; title: string; start: string; end: string; cat: CatId; milestone?: boolean; outcome?: 'done' | 'missed' };
 
 export type WeekInfo = { focus?: string; notes?: string };
-export type Goal = { text: string; done: boolean };
+export type GoalItem = { id: string; text: string; done: boolean };
+/** A quarter's goals. items (up to 5) is the checklist; text and done mirror it for older clients
+ *  (text = item texts, one per line; done = every item done). See goalItems() for reading. */
+export type Goal = { text: string; done: boolean; items?: GoalItem[] };
 export type GoalKey = 'q1' | 'q2' | 'q3' | 'q4';
 
 export type Meta = {
