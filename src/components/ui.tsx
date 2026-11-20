@@ -220,6 +220,7 @@ export function Field({ label, style, multiline, ref, ...rest }: TextInputProps 
       {label ? <Label>{label}</Label> : null}
       <TextInput
         ref={ref}
+        accessibilityLabel={label}
         placeholderTextColor="#6F6A65"
         selectionColor={C.lit}
         keyboardAppearance="dark"

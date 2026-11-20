@@ -254,16 +254,15 @@ export function YearShareCard({ o }: { o: ShareOptions }) {
     <View style={card}>
       <Header over={ch ? `Chapter ${ch.n}: ${ch.name}` : 'The chapter year'} title="Year Wall" under={`Week ${cw} of ${WEEKS} · ${plural(pw.count, 'perfect week')} · ${plural(st.active, 'active day')}`} />
       <View>
-        <View style={{ flexDirection: 'row', height: 10 }}>
-          {labels.map((l, i) => (
-            <View key={i} style={{ width: 6, overflow: 'visible' }}>
-              {l ? (
-                <T s={6.5} w={600} c={C.mut2} numberOfLines={1} style={{ width: 24, lineHeight: 9 }}>
-                  {l}
-                </T>
-              ) : null}
-            </View>
-          ))}
+        {/* Month labels sit over their first week; each column is 5 px plus a 1 px gap. */}
+        <View style={{ height: 10 }}>
+          {labels.map((l, i) =>
+            l ? (
+              <T key={i} s={6.5} w={600} c={C.mut2} style={{ position: 'absolute', left: i * 6, top: 0, lineHeight: 9 }}>
+                {l}
+              </T>
+            ) : null,
+          )}
         </View>
         <View style={{ flexDirection: 'row', gap: 1 }}>
           {cols.map((days, i) => (

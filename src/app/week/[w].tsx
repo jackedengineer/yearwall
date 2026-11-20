@@ -43,51 +43,52 @@ function HabitGrid({ days }: { days: string[] }) {
         No habits are scheduled this week.
       </T>
     );
+  // On a phone each habit gets its own line for the name and a full-width row of days below it.
   return (
-    <View style={{ gap: 6 }}>
-      <View style={g.row} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-        <T w={600} s={11} c={C.mut} style={g.name}>
-          Habits
-        </T>
+    <View style={{ gap: 12 }}>
+      <View style={g.days} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         {days.map((d, i) => (
           <T key={d} w={d === t ? 700 : 600} s={11} c={d === t ? C.tx : C.mut} style={{ flex: 1, textAlign: 'center' }}>
-            {DOW[i][0]}
+            {DOW[i]}
           </T>
         ))}
-        <View style={g.count} />
       </View>
       {hs.map((h) => {
         const c = habitColor(h);
         const p = weekProgress(h, t < days[6] ? t : days[6], weekOf(days[0]));
         return (
-          <View key={h.id} style={g.row}>
-            <View style={[g.name, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+          <View key={h.id} style={{ gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.fill }} />
-              <T w={600} s={13} numberOfLines={1} style={{ flexShrink: 1 }}>
+              <T w={600} s={13} numberOfLines={1} style={{ flex: 1 }} accessibilityRole="header">
                 {h.name}
               </T>
+              <T s={12} c={C.mut} accessibilityLabel={`${p.done} of ${p.target} done`}>
+                {p.done}/{p.target}
+              </T>
             </View>
-            {days.map((d) => {
-              const active = isActive(h, d);
-              const done = active && doneOn(h, d);
-              const part = active && !done && valueOn(h, d) > 0;
-              const auto = h.auto === 'journal';
-              const off = !active || d > t;
-              const look = !active
-                ? { borderColor: C.line2, opacity: 0.35 }
-                : done
-                  ? { backgroundColor: c.fill, borderColor: c.fill }
-                  : part
-                    ? { backgroundColor: c.dim, borderColor: c.fill }
-                    : d > t
-                      ? { backgroundColor: '#1A1817', borderColor: C.line2 }
-                      : { borderColor: CONTROL_LINE };
-              const label = `${h.type === 'minutes' && done ? 'Change minutes of' : 'Log'} ${h.name} for ${fmt(d, { wd: true })}${
-                !active ? ', not scheduled' : auto ? `, ${done ? 'done' : 'not done'}, ticks itself from the log` : h.type === 'minutes' ? `, ${valueOn(h, d)} of ${targetOn(h, d)} min` : ''
-              }`;
-              return (
-                <View key={d} style={{ flex: 1 }}>
+            <View style={g.days}>
+              {days.map((d) => {
+                const active = isActive(h, d);
+                const done = active && doneOn(h, d);
+                const part = active && !done && valueOn(h, d) > 0;
+                const auto = h.auto === 'journal';
+                const off = !active || d > t;
+                const look = !active
+                  ? { borderColor: C.line2, opacity: 0.35 }
+                  : done
+                    ? { backgroundColor: c.fill, borderColor: c.fill }
+                    : part
+                      ? { backgroundColor: c.dim, borderColor: c.fill }
+                      : d > t
+                        ? { backgroundColor: '#1A1817', borderColor: C.line2 }
+                        : { borderColor: CONTROL_LINE };
+                const label = `${h.type === 'minutes' && done ? 'Change minutes of' : 'Log'} ${h.name} for ${fmt(d, { wd: true })}${
+                  !active ? ', not scheduled' : auto ? `, ${done ? 'done' : 'not done'}, ticks itself from the log` : h.type === 'minutes' ? `, ${valueOn(h, d)} of ${targetOn(h, d)} min` : ''
+                }`;
+                return (
                   <Pressable
+                    key={d}
                     disabled={off || auto}
                     onPress={() => toggleDay(h, d)}
                     accessibilityRole={h.type === 'check' ? 'checkbox' : 'button'}
@@ -95,14 +96,11 @@ function HabitGrid({ days }: { days: string[] }) {
                     accessibilityLabel={label}
                     style={[g.cell, look, d === t && { borderWidth: 1.5 }]}
                   >
-                    {done ? <Feather name="check" size={13} color={C.bg} /> : null}
+                    {done ? <Feather name="check" size={14} color={C.bg} /> : null}
                   </Pressable>
-                </View>
-              );
-            })}
-            <T s={12} c={C.mut} style={g.count} accessibilityLabel={`${p.done} of ${p.target} done`}>
-              {p.done}/{p.target}
-            </T>
+                );
+              })}
+            </View>
           </View>
         );
       })}
@@ -359,8 +357,6 @@ export default function WeekSheet() {
 }
 
 const g = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  name: { flex: 1.8, minWidth: 0 },
-  cell: { aspectRatio: 1, borderRadius: 7, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  count: { width: 34, textAlign: 'right' },
+  days: { flexDirection: 'row', gap: 6 },
+  cell: { flex: 1, height: 40, borderRadius: 9, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 });
