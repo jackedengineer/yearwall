@@ -110,6 +110,17 @@ export function yearProgress(ref = todayS()) {
   return { week, weeks: WEEKS, daysLeft: total - elapsed, pct: Math.round((elapsed / total) * 100), started: ref >= YEAR_START, ended: ref > YEAR_END };
 }
 
+/** Board colour for one habit's day while it's in the spotlight. */
+export function spotlightBar(h: Habit, d: string, ref = todayS()) {
+  const s = dayState(h, d, ref);
+  const c = habitColor(h);
+  if (s === 'done') return c.fill;
+  if (s === 'partial') return c.dim;
+  if (s === 'future') return '#171514';
+  if (s === 'off') return '#121110';
+  return '#24211F';
+}
+
 /** Perfect weeks so far, the longest run of them, and the run ending this week. Weeks with nothing scheduled are skipped. */
 export function perfectWeeks(ref = todayS()) {
   if (ref < YEAR_START) return { count: 0, bestRun: 0, currentRun: 0 };

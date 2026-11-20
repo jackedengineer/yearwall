@@ -12,6 +12,8 @@ import { doneOn, isActive, streak, targetOn, valueOn } from '@core/utils/logic';
 import { habitColor, progressLine, weekStrip, type DayState } from '@core/utils/progress';
 import Feather from '@web/lib/icons';
 import { router } from '@web/lib/router';
+import { setSpotlight } from '@web/lib/view-state';
+import { UI } from '@core/data/state';
 import { archiveHabit, deleteHabit, logHabit } from './habit-actions';
 
 const STATE_WORDS: Record<DayState, string> = {
@@ -81,6 +83,26 @@ export function WeekStrip({ h, d }: { h: Habit; d: string }) {
         <span key={x.date} className={`cap s-${x.state}${x.today ? ' today' : ''}`} title={`${fmt(x.date, { wd: true })}: ${STATE_WORDS[x.state]}${h.type === 'minutes' && x.state !== 'off' ? `, ${x.value} of ${x.target} min` : ''}`} />
       ))}
     </div>
+  );
+}
+
+/** Eye: show only this habit on the Year board. */
+export function SpotlightButton({ h }: { h: Habit }) {
+  const on = UI.spotlight === h.id;
+  return (
+    <button
+      type="button"
+      className="icon-btn"
+      aria-pressed={on}
+      aria-label={`Spotlight ${h.name} on the board`}
+      title={on ? 'Showing on the board. Click to show all habits.' : 'Show only this habit on the board'}
+      onClick={() => {
+        setSpotlight(on ? '' : h.id);
+        if (!on && !location.pathname.startsWith('/year')) router.push('/year');
+      }}
+    >
+      <Feather name="eye" size={17} />
+    </button>
   );
 }
 
@@ -167,7 +189,10 @@ export function HabitCard({ h, d }: { h: Habit; d: string }) {
           <span className="hc-line">{h.auto === 'journal' && !done && d === t ? "Ticks itself when you write tonight's log" : line}</span>
         )}
       </div>
-      <Menu h={h} />
+      <div className="hc-actions">
+        <SpotlightButton h={h} />
+        <Menu h={h} />
+      </div>
     </article>
   );
 }
