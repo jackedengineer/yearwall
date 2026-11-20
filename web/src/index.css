@@ -1394,3 +1394,147 @@ a.tab:focus-visible,
   color: var(--tx2, #c9c4be);
   line-height: 1.45;
 }
+
+/* ---------- quarter goals ---------- */
+
+.goals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr));
+  gap: 10px;
+}
+
+.goals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: #141312;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.goals.now {
+  border: 2px solid #55504b;
+  padding: 13px;
+}
+
+.goals-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.goals-head h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.goals-range {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--mut);
+}
+
+.goals-badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid #33302d;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mut);
+}
+
+.goals-badge.now {
+  border-color: var(--lit);
+  color: var(--tx);
+}
+
+.goal-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.goal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+
+.goal-tick {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1.5px solid #5c5853;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--bg);
+  cursor: pointer;
+  transition:
+    background-color 150ms,
+    border-color 150ms;
+}
+
+.goal.done .goal-tick {
+  background: #86e2ae;
+  border-color: #86e2ae;
+}
+
+.goal-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.goal.done .goal-text {
+  color: var(--mut);
+  text-decoration: line-through;
+}
+
+.goal-tick:focus-visible,
+.goal-add .field:focus-visible {
+  outline: 2px solid var(--lit);
+  outline-offset: 2px;
+}
+
+.goal-add {
+  display: flex;
+  gap: 8px;
+}
+
+.goal-add .field {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  background: #0b0a09;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--tx);
+  font-size: 14px;
+}
+
+.goal-add .btn {
+  min-height: 40px;
+}
+
+.goal-add .btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.goals-count {
+  margin: 0;
+  font-size: 12px;
+  color: var(--mut);
+}

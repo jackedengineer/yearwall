@@ -1,7 +1,7 @@
 // Web version of src/screens/year.tsx (ported from the phone app).
 import { router } from '@web/lib/router';
 import Feather from '@web/lib/icons';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import { css, Pressable, StyleSheet, View } from '@web/lib/rn';
 import { openWeek } from '@web/components/open-week';
 import { useDragToPlan } from '@web/components/drag-plan';
@@ -9,14 +9,14 @@ import { reducedMotion, useMediaQuery } from '@web/lib/media';
 import { perfectWeeks, plansInWeek, spotlightBar, weekProgress, yearProgress } from '@core/utils/progress';
 import { setSpotlight, setYearView, spotlightHabit, toggleCategory } from '@web/lib/view-state';
 import { colorVars } from '@web/components/habit-card';
+import { GoalCard } from '@web/components/goals';
 import type { Habit } from '@core/data/types';
-import { Card, Chip, Field, Screen, Section, T } from '@web/ui';
+import { Chip, Screen, Section, T } from '@web/ui';
 import { CATS } from '@core/constants';
 import { commit, S, UI } from '@core/data/state';
-import { actions } from '@core/data/store';
 import { useStore } from '@web/lib/use-store';
 import { C } from '@web/lib/theme';
-import { addD, clampWeek, dowI, ds, fmt, fmtRange, MONTHS, pd, plural, todayS, weekDays, weekOf, weekStart, YEAR_END, YEAR_START } from '@core/utils/dates';
+import { clampWeek, dowI, ds, fmt, fmtRange, MONTHS, pd, plural, todayS, weekDays, weekOf, YEAR_END, YEAR_START } from '@core/utils/dates';
 import { barColor, capOn, chapterLabelForMonth, isPerfect, monthsOfYear, yearStats } from '@core/utils/logic';
 
 const WeekCard = memo(function WeekCard({ w, now, perfect, bars, spot }: { w: number; now: boolean; perfect: boolean; bars: { date: string; color: string; cap: string | null; today: boolean }[]; spot?: string }) {
@@ -164,42 +164,6 @@ function DaysBoard({ spot }: { spot: Habit | null }) {
   );
 }
 
-function GoalCard({ q, now }: { q: 1 | 2 | 3 | 4; now: boolean }) {
-  const g = S.meta.goals[`q${q}`];
-  const [text, setText] = useState(g.text);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
-  const ws = (q - 1) * 13 + 1;
-  const we = q * 13;
-  return (
-    <Card style={[{ padding: 14, gap: 8 }, now && { borderColor: '#55504B' }]}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <T w={700} s={13}>
-          Q{q} goals{' '}
-          <T s={11} c={C.mut}>
-            {fmt(weekStart(ws))} – {fmt(addD(weekStart(we), 6))}
-          </T>
-        </T>
-        <Chip label={g.done ? 'Done' : now ? 'Now' : 'Mark done'} on={g.done} onPress={() => actions.saveGoal(q, { done: !g.done, text })} />
-      </View>
-      <Field
-        value={text}
-        onChangeText={(v) => {
-          setText(v);
-          if (timer.current) clearTimeout(timer.current);
-          timer.current = setTimeout(() => actions.saveGoal(q, { text: v }, true), 500);
-        }}
-        onBlur={() => actions.saveGoal(q, { text }, true)}
-        placeholder="What would make this quarter count?"
-        multiline
-        style={{ minHeight: 56, fontSize: 14 }}
-      />
-    </Card>
-  );
-}
-
 export function Year() {
   useStore();
   const t = todayS();
@@ -219,7 +183,6 @@ export function Year() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [spot]);
-  const q = Math.min(4, Math.floor((cw - 1) / 13) + 1);
   const board = useRef<HTMLDivElement>(null);
   const planRange = useCallback((a: string, b: string, x: number) => openWeek(clampWeek(weekOf(a)), { from: a, to: b, focus: 'plan', x }), []);
   useDragToPlan(board, planRange);
@@ -349,9 +312,11 @@ export function Year() {
       </div>
 
       <Section left="Quarter goals" right="Chapter year quarters" />
-      {([1, 2, 3, 4] as const).map((qq) => (
-        <GoalCard key={qq} q={qq} now={qq === q} />
-      ))}
+      <div className="goals-grid">
+        {([1, 2, 3, 4] as const).map((qq) => (
+          <GoalCard key={qq} q={qq} />
+        ))}
+      </div>
     </Screen>
   );
 }
