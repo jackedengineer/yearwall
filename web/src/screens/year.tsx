@@ -10,6 +10,7 @@ import { perfectWeeks, plansInWeek, spotlightBar, weekProgress, yearProgress } f
 import { setSpotlight, setYearView, spotlightHabit, toggleCategory } from '@web/lib/view-state';
 import { colorVars } from '@web/components/habit-card';
 import { GoalCard } from '@web/components/goals';
+import { startTour } from '@web/components/tour';
 import type { Habit } from '@core/data/types';
 import { Chip, Screen, Section, T } from '@web/ui';
 import { CATS } from '@core/constants';
@@ -204,7 +205,12 @@ export function Year() {
         <T w={700} s={24} style={{ flexShrink: 1, lineHeight: 30 }}>
           Year Wall
         </T>
-        <Chip label="Share" onPress={() => router.push({ pathname: '/share', params: { kind: 'year' } })} />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Chip label="How it works" onPress={startTour} />
+          <span id="tour-share">
+            <Chip label="Share" onPress={() => router.push({ pathname: '/share', params: { kind: 'year' } })} />
+          </span>
+        </View>
       </View>
 
       <div className="yprog" role="group" aria-label="Year progress">
@@ -220,7 +226,7 @@ export function Year() {
       </div>
 
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <View style={[s.stat, { backgroundColor: C.okBg, borderColor: C.okLine, flex: 1.6 }]}>
+        <View nativeID="tour-perfect" style={[s.stat, { backgroundColor: C.okBg, borderColor: C.okLine, flex: 1.6 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
             <T w={700} s={20} c={C.ok}>
               {pw.count}
@@ -307,12 +313,12 @@ export function Year() {
         </div>
       ) : null}
 
-      <div ref={board} className="board">
+      <div ref={board} className="board" data-tour="board">
         {UI.yearView === 'weeks' ? <WeeksBoard spot={spot} /> : <DaysBoard spot={spot} />}
       </div>
 
       <Section left="Quarter goals" right="Chapter year quarters" />
-      <div className="goals-grid">
+      <div className="goals-grid" data-tour="goals">
         {([1, 2, 3, 4] as const).map((qq) => (
           <GoalCard key={qq} q={qq} />
         ))}

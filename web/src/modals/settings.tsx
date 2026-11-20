@@ -7,6 +7,7 @@ import { Banner, Btn, Card, DateField, Field, ModalScreen, Section, T } from '@w
 import { S } from '@core/data/state';
 import { actions } from '@core/data/store';
 import { signOut, syncNow, useSyncStatus } from '@web/data/sync-web';
+import { startTour } from '@web/components/tour';
 import { useStore } from '@web/lib/use-store';
 import { C } from '@web/lib/theme';
 import { fmt, todayS } from '@core/utils/dates';
@@ -177,7 +178,14 @@ export default function SettingsSheet() {
         <Btn label="Export backup" kind="ghost" icon="upload" style={{ flex: 1 }} onPress={exportBackup} />
         <Btn label="Import backup" kind="ghost" icon="download" style={{ flex: 1 }} onPress={importBackup} />
       </View>
-      <Btn label="Replay the intro" kind="ghost" onPress={() => router.push('/intro')} />
+      <Btn
+        label="Replay the tour"
+        kind="ghost"
+        onPress={() => {
+          router.back();
+          setTimeout(startTour, 50);
+        }}
+      />
     </ModalScreen>
   );
 }

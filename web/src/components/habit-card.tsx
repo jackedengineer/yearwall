@@ -87,11 +87,12 @@ export function WeekStrip({ h, d }: { h: Habit; d: string }) {
 }
 
 /** Eye: show only this habit on the Year board. */
-export function SpotlightButton({ h }: { h: Habit }) {
+export function SpotlightButton({ h, tour }: { h: Habit; tour?: boolean }) {
   const on = UI.spotlight === h.id;
   return (
     <button
       type="button"
+      data-tour={tour ? 'spot' : undefined}
       className="icon-btn"
       aria-pressed={on}
       aria-label={`Spotlight ${h.name} on the board`}
@@ -161,7 +162,7 @@ function Menu({ h }: { h: Habit }) {
   );
 }
 
-export function HabitCard({ h, d }: { h: Habit; d: string }) {
+export function HabitCard({ h, d, first }: { h: Habit; d: string; first?: boolean }) {
   const t = todayS();
   const done = doneOn(h, d);
   const st = streak(h, d <= t ? d : t);
@@ -169,7 +170,7 @@ export function HabitCard({ h, d }: { h: Habit; d: string }) {
   return (
     <article className={`hcard${done ? ' done' : ''}`} style={colorVars(h)} aria-label={h.name}>
       <Ring h={h} d={d} />
-      <div className="hc-main">
+      <div className="hc-main" data-tour={first ? 'strip' : undefined}>
         <div className="hc-top">
           <span className="hc-name">{h.name}</span>
           {st.n > 0 ? (
@@ -190,7 +191,7 @@ export function HabitCard({ h, d }: { h: Habit; d: string }) {
         )}
       </div>
       <div className="hc-actions">
-        <SpotlightButton h={h} />
+        <SpotlightButton h={h} tour={first} />
         <Menu h={h} />
       </div>
     </article>
@@ -201,9 +202,9 @@ export function HabitCard({ h, d }: { h: Habit; d: string }) {
 export function HabitCards({ d, compact }: { d: string; compact?: boolean }) {
   const list = S.meta.habits.filter((h) => isActive(h, d));
   return (
-    <div className={compact ? 'hcards compact' : 'hcards'}>
-      {list.map((h) => (
-        <HabitCard key={h.id} h={h} d={d} />
+    <div className={compact ? 'hcards compact' : 'hcards'} data-tour={compact ? undefined : 'cards'}>
+      {list.map((h, i) => (
+        <HabitCard key={h.id} h={h} d={d} first={i === 0} />
       ))}
     </div>
   );

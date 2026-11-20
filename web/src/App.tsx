@@ -10,7 +10,6 @@ import { useStore } from '@web/lib/use-store';
 import ChapterEdit from '@web/modals/chapter-edit';
 import HabitSheet from '@web/modals/habit';
 import IncomeSheet from '@web/modals/income';
-import Intro from '@web/modals/intro';
 import MinutesSheet from '@web/modals/minutes';
 import PlanSheet from '@web/modals/plan';
 import PostSheet from '@web/modals/post';
@@ -28,6 +27,7 @@ import { Btn, Field, T } from '@web/ui';
 import { ConfirmHost } from '@web/components/confirm';
 import { Sidebar, useSidebarCollapsed } from '@web/components/sidebar';
 import { ToastHost } from '@web/components/toast';
+import { startTour, TourHost } from '@web/components/tour';
 
 const PAGES: Record<(typeof TABS)[number], { title: string; icon: string; C: ComponentType }> = {
   '/': { title: 'Today', icon: 'sun', C: Today },
@@ -49,8 +49,17 @@ const MODALS: Record<ModalRoute, ComponentType> = {
   '/settings': SettingsSheet,
   '/target': TargetSheet,
   '/share': ShareSheet,
-  '/intro': Intro,
+  '/intro': IntroRedirect,
 };
+
+/** The old intro screens are now the tour: /intro starts it. */
+function IntroRedirect() {
+  useEffect(() => {
+    router.replace('/');
+    startTour();
+  }, []);
+  return null;
+}
 
 export default function App() {
   const [phase, setPhase] = useState<Boot | 'loading'>('loading');
@@ -190,10 +199,15 @@ function Shell() {
     if (!m) router.replace('/');
   }, [m]);
 
-  // First visit: show the intro, like the phone does.
+  // First visit: take the tour. (Old links to /intro start it too.)
   useEffect(() => {
+    if (m?.route === '/intro') {
+      router.replace('/');
+      startTour();
+      return;
+    }
     if (!S.meta.settings.tourDone && !Modal) {
-      const t = setTimeout(() => router.push('/intro'), 400);
+      const t = setTimeout(startTour, 400);
       return () => clearTimeout(t);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -264,6 +278,7 @@ function Shell() {
       ) : null}
       <ToastHost />
       <ConfirmHost />
+      <TourHost />
     </>
   );
 }
