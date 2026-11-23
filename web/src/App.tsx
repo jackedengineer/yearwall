@@ -1,4 +1,5 @@
-import { useEffect, useState, type ComponentType } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { useMediaQuery } from '@web/lib/media';
 import { S, UI, commit } from '@core/data/state';
 import { todayS } from '@core/utils/dates';
 import { boot, checkKey, hasData, startFresh, type Boot } from '@web/data/sync-web';
@@ -9,7 +10,6 @@ import { useStore } from '@web/lib/use-store';
 import ChapterEdit from '@web/modals/chapter-edit';
 import HabitSheet from '@web/modals/habit';
 import IncomeSheet from '@web/modals/income';
-import Intro from '@web/modals/intro';
 import MinutesSheet from '@web/modals/minutes';
 import PlanSheet from '@web/modals/plan';
 import PostSheet from '@web/modals/post';
@@ -24,6 +24,10 @@ import { Money } from '@web/screens/money';
 import { Today } from '@web/screens/today';
 import { Year } from '@web/screens/year';
 import { Btn, Field, T } from '@web/ui';
+import { ConfirmHost } from '@web/components/confirm';
+import { Sidebar, useSidebarCollapsed } from '@web/components/sidebar';
+import { ToastHost } from '@web/components/toast';
+import { startTour, TourHost } from '@web/components/tour';
 
 const PAGES: Record<(typeof TABS)[number], { title: string; icon: string; C: ComponentType }> = {
   '/': { title: 'Today', icon: 'sun', C: Today },
@@ -45,8 +49,17 @@ const MODALS: Record<ModalRoute, ComponentType> = {
   '/settings': SettingsSheet,
   '/target': TargetSheet,
   '/share': ShareSheet,
-  '/intro': Intro,
+  '/intro': IntroRedirect,
 };
+
+/** The old intro screens are now the tour: /intro starts it. */
+function IntroRedirect() {
+  useEffect(() => {
+    router.replace('/');
+    startTour();
+  }, []);
+  return null;
+}
 
 export default function App() {
   const [phase, setPhase] = useState<Boot | 'loading'>('loading');
@@ -152,22 +165,50 @@ let lastTab: (typeof TABS)[number] = '/';
 
 function Shell() {
   useStore();
+  const [collapsed, toggleSidebar] = useSidebarCollapsed();
   const loc = useLocation();
   const m = match(loc.split('?')[0]);
   if (m && (TABS as readonly string[]).includes(m.route)) lastTab = m.route as (typeof TABS)[number];
   const tab = lastTab;
   const Modal = m && !(TABS as readonly string[]).includes(m.route) ? MODALS[m.route as ModalRoute] : null;
   const Page = PAGES[tab].C;
+  // On wide screens a week opened from the board is a drawer beside it, not a dialog over it.
+  const wide = useMediaQuery('(min-width: 1024px)');
+  const drawer = !!Modal && m?.route === '/week/[w]' && tab === '/year' && wide;
+  const drawerSide = new URLSearchParams(loc.split('?')[1] || '').get('side') === 'left' ? 'left' : 'right';
+
+  // Focus goes back to whatever opened the dialog or drawer when it closes:
+  // remember the last thing focused outside any dialog.
+  const opener = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    const onFocus = (e: FocusEvent) => {
+      const el = e.target as HTMLElement;
+      if (el instanceof HTMLElement && !el.closest('[role=dialog], [role=alertdialog], .toast-region')) opener.current = el;
+    };
+    document.addEventListener('focusin', onFocus);
+    return () => document.removeEventListener('focusin', onFocus);
+  }, []);
+  useEffect(() => {
+    if (!Modal && wasOpen.current && opener.current?.isConnected) opener.current.focus({ preventScroll: true });
+    wasOpen.current = !!Modal;
+  }, [Modal]);
 
   // Unknown address: go to Today.
   useEffect(() => {
     if (!m) router.replace('/');
   }, [m]);
 
-  // First visit: show the intro, like the phone does.
+  // First visit: take the tour. (Old links to /intro start it too.)
   useEffect(() => {
-    if (!S.meta.settings.tourDone && !Modal) {
-      const t = setTimeout(() => router.push('/intro'), 400);
+    if (m?.route === '/intro') {
+      router.replace('/');
+      startTour();
+      return;
+    }
+    // Show the tour once to everyone who hasn't seen this version (the old intro set tourDone only).
+    if ((S.meta.settings.tourSeen ?? 0) < 2 && !Modal) {
+      const t = setTimeout(startTour, 400);
       return () => clearTimeout(t);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -190,16 +231,36 @@ function Shell() {
 
   // Keep the page behind a dialog from scrolling.
   useEffect(() => {
-    document.body.classList.toggle('locked', !!Modal);
-  }, [Modal]);
+    document.body.classList.toggle('locked', !!Modal && !drawer);
+  }, [Modal, drawer]);
+
+  // After moving to another tab, start keyboard and screen-reader users at its title.
+  const firstTab = useRef(true);
+  useEffect(() => {
+    if (firstTab.current) {
+      firstTab.current = false;
+      return;
+    }
+    requestAnimationFrame(() => {
+      const a = document.activeElement;
+      if (!a || a === document.body || !a.isConnected || a.closest('nav.tabs')) document.getElementById('page-title')?.focus({ preventScroll: true });
+    });
+  }, [tab]);
+  // A dialog (not the drawer) makes the page behind it inert, so Tab stays inside.
+  const inert = !!Modal && !drawer;
 
   useEffect(() => {
     document.title = Modal ? 'Year Wall' : `${PAGES[tab].title} · Year Wall`;
   }, [tab, Modal]);
 
+  // Wide screens show today's habits beside every tab except Today (which has them already).
+  const side = tab !== '/';
   return (
     <>
-      <nav className="tabs" aria-label="Sections">
+      <a className="skip" href="#main">
+        Skip to content
+      </a>
+      <nav className={side ? 'tabs wide' : 'tabs'} aria-label="Sections" inert={inert}>
         <span className="brand small">Year Wall</span>
         {TABS.map((p) => (
           <a
@@ -217,16 +278,26 @@ function Shell() {
           </a>
         ))}
       </nav>
-      <div className="page">
-        <Page />
+      <div className={`layout${side ? ' side' : ''}${side && collapsed ? ' collapsed' : ''}`} inert={inert}>
+        {side ? <Sidebar collapsed={collapsed} onToggle={toggleSidebar} /> : null}
+        <div className="page" id="main" tabIndex={-1}>
+          <Page />
+        </div>
       </div>
-      {Modal ? (
+      {Modal && drawer ? (
+        <div className={`drawer ${drawerSide}`} role="dialog" aria-modal="false" aria-labelledby="modal-title">
+          <Modal />
+        </div>
+      ) : Modal ? (
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && router.back()}>
-          <div className="dialog" role="dialog" aria-modal="true">
+          <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
             <Modal />
           </div>
         </div>
       ) : null}
+      <ToastHost />
+      <ConfirmHost />
+      <TourHost />
     </>
   );
 }

@@ -6,8 +6,9 @@ import { allKeys, keyOf, logId, type Kind, type Rec } from './records';
 import * as repo from './repo';
 import { commit, S, uid } from './state';
 import { buildTemplate } from './template';
-import type { Chapter, GoalKey, Habit, Income, JournalEntry, Plan, Post, Settings, State, Test } from './types';
-import { monKey } from '../utils/dates';
+import type { Chapter, GoalItem, GoalKey, Habit, Income, JournalEntry, Plan, Post, Settings, State, Test } from './types';
+import { addD, monKey, todayS } from '../utils/dates';
+import { goalFromItems } from '../utils/progress';
 
 /** Where actions save data. The phone uses SQLite (repo.ts); the web app keeps data in memory only. */
 export type Persist = Pick<
@@ -48,17 +49,20 @@ function assign(st: State) {
   S.journal = st.journal;
 }
 
-/** Opens the database, creates tables, and loads everything into memory. First run writes the Chapter 1 plan. */
-export function initStore(db: repo.Db) {
-  P = repo;
+/**
+ * Opens the database, creates tables, and loads everything into memory. First run writes the Chapter 1 plan.
+ * `persist` is only swapped by the tests, to act like an older phone.
+ */
+export function initStore(db: repo.Db, persist: Persist = repo) {
+  P = persist;
   repo.setDb(db);
   repo.migrate();
-  const st = repo.loadAll();
+  const st = P.loadAll();
   if (st) assign(st);
   else {
     const t = buildTemplate();
-    repo.replaceAll(t);
-    assign(repo.loadAll() ?? t);
+    P.replaceAll(t);
+    assign(P.loadAll() ?? t);
   }
   commit();
 }
@@ -144,7 +148,7 @@ export function applyRemote(recs: Rec[]) {
         case 'goal': {
           const g = d ?? { text: '', done: false };
           S.meta.goals = { ...S.meta.goals, [i]: g };
-          P.saveGoal(Number(i.slice(1)), g.text || '', !!g.done);
+          P.saveGoal(Number(i.slice(1)), g.text || '', !!g.done, g.items);
           break;
         }
         case 'post':
@@ -221,6 +225,18 @@ export const actions = {
     touch('log', logId(d, h.id));
     commit();
   },
+  /**
+   * One tap on a habit's ring for day `d`: a check habit toggles, a minutes habit adds one step.
+   * Returns the value before and after, for the toast and its Undo (actions.setValue(h, d, before)).
+   * Habits that tick themselves (the nightly log) return null.
+   */
+  tick(h: Habit, d: string): { before: number; after: number } | null {
+    if (h.auto) return null;
+    const before = Number(S.logs[monKey(d)]?.[d]?.[h.id]) || 0;
+    const after = h.type === 'check' ? (before >= 1 ? 0 : 1) : before + Math.max(1, Math.round(h.step || 1));
+    actions.setValue(h, d, after);
+    return { before, after };
+  },
   saveHabit(h: Habit) {
     const i = S.meta.habits.findIndex((x) => x.id === h.id);
     if (i >= 0) S.meta.habits[i] = h;
@@ -229,6 +245,17 @@ export const actions = {
     P.saveHabit(h, S.meta.habits.findIndex((x) => x.id === h.id));
     touch('habit', h.id);
     commit();
+  },
+  /** Stops tracking a habit from today but keeps its history (it ends yesterday, or earlier if it already had). */
+  archiveHabit(id: string) {
+    const h = S.meta.habits.find((x) => x.id === id);
+    if (!h) return;
+    const yesterday = addD(todayS(), -1);
+    actions.saveHabit({ ...h, activeTo: h.activeTo && h.activeTo < yesterday ? h.activeTo : yesterday });
+  },
+  unarchiveHabit(id: string) {
+    const h = S.meta.habits.find((x) => x.id === id);
+    if (h) actions.saveHabit({ ...h, activeTo: null });
   },
   deleteHabit(id: string) {
     S.meta.habits = S.meta.habits.filter((h) => h.id !== id);
@@ -264,11 +291,21 @@ export const actions = {
   addPlan(title: string, start: string, end: string, cat: Plan['cat']) {
     actions.savePlan({ id: uid('pl'), title, start, end, cat });
   },
-  deletePlan(id: string) {
+  /** Removes a plan and returns it, so an Undo can put it back with savePlan. */
+  deletePlan(id: string): Plan | null {
+    const gone = S.meta.plans.find((p) => p.id === id) ?? null;
     S.meta.plans = S.meta.plans.filter((p) => p.id !== id);
     P.deletePlan(id);
     touch('plan', id);
     commit();
+    return gone;
+  },
+  /** "Did it happen?" for a plan whose dates have passed. null clears the answer (Undo); it's written
+   *  as null rather than left out, because the server keeps fields a record leaves out. */
+  setPlanOutcome(id: string, outcome: 'done' | 'missed' | null) {
+    const p = S.meta.plans.find((x) => x.id === id);
+    if (!p) return;
+    actions.savePlan({ ...p, outcome });
   },
 
   /* weeks + goals */
@@ -279,11 +316,20 @@ export const actions = {
     touch('week', String(w));
     if (!silent) commit();
   },
+  /** The quarter's checklist (up to 5 items). Also writes text/done so older clients still show the goals. */
+  saveGoalItems(q: 1 | 2 | 3 | 4, items: GoalItem[]) {
+    const key = `q${q}` as GoalKey;
+    const g = goalFromItems(items);
+    S.meta.goals = { ...S.meta.goals, [key]: g };
+    P.saveGoal(q, g.text, g.done, g.items);
+    touch('goal', key);
+    commit();
+  },
   saveGoal(q: 1 | 2 | 3 | 4, patch: { text?: string; done?: boolean }, silent = false) {
     const key = `q${q}` as GoalKey;
     const g = { ...S.meta.goals[key], ...patch };
     S.meta.goals = { ...S.meta.goals, [key]: g };
-    P.saveGoal(q, g.text, g.done);
+    P.saveGoal(q, g.text, g.done, g.items);
     touch('goal', key);
     if (!silent) commit();
   },

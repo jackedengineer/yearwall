@@ -68,7 +68,7 @@ export function allKeys(st: State = S): Key[] {
   Object.keys(st.meta.weeks).forEach((w) => readRecord('week', w, st) && out.push({ k: 'week', i: w }));
   GOALS.forEach((q) => {
     const g = st.meta.goals[q];
-    if (g && (g.text || g.done)) out.push({ k: 'goal', i: q });
+    if (g && (g.text || g.done || g.items?.length)) out.push({ k: 'goal', i: q });
   });
   st.posts.forEach((p) => out.push({ k: 'post', i: p.id }));
   st.income.forEach((x) => out.push({ k: 'income', i: x.id }));
